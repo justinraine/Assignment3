@@ -70,8 +70,6 @@ public:
     void Print();
     //
     void Clear();
-		//clears the lane to white from any color
-		void ClearLane(int index);
     
 private:
     /* the data of the Lanes class */

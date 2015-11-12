@@ -86,7 +86,7 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
 		          // Reset non-violet lanes back to white
 							for (int i = 0; i < nLanes; i++){
 								if (lanesGallery->Get(i) != violet){
-									lanesGallery->ClearLane(i);
+									lanesGallery->clearLane(i);
 								}
 							}
 							roundLanesShot = 0; //new round starting now
