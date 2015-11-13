@@ -5,26 +5,28 @@
 #include <vector>
 #include <mutex>
 #include <chrono>
+#include <getopt.h>
 
 using namespace std;
 
 
 // Debug setting
-#define DEBUG_OUTPUT false
-#define GRAPHIC_OUTPUT true
+#define DEBUG_OUTPUT true
+#define GRAPHIC_OUTPUT false
 
 #define DB(fmt, ...) \
 do { if (DEBUG_OUTPUT) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
 
 
+
 // Specify action with definition of: {RogueCoarse, RogueFine, RogueTM, RogueCoarse2, RogueFine2, RogueTM2,
 //                                     RogueCoarseCleaner, RogueFineCleaner, RogueTMCleaner}
-#define RogueCoarse
+#define RogueCoarse2
 
 
 // Global variables
 Lanes* lanesGallery;
-int nLanes = 4;
+int nLanes = 16;
 int roundLanesShot = 0; //number of lanes shot (blue or red)
 bool execute = true;
 mutex coarseLock;
@@ -38,20 +40,25 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
      *  PlayerColor : Red/Blue.
      */
     
-    srand ((int)playerColor); // seed random number
+    srand ((int)chrono::system_clock::now().time_since_epoch().count() / playerColor); // seed random number
     
     // Setup variables
     Color selectedLaneColor;
+    Color selectedLaneColor2; // Surpress unsused variable warnings in single lane cases. Only compatable with gcc
     Color returnColor;
-    int violetLanes = 0;
+    Color returnColor2;
+    //int violetLanes = 0;  *** Should never have violet lanes. Use assert statements instead
     
     
     while (execute) {
-        auto timeOfNextShot = chrono::system_clock::now() + chrono::milliseconds(1000/rateShotsPerSecond);
+        auto timeOfNextShot = (chrono::system_clock::now() + chrono::milliseconds(1000/rateShotsPerSecond));
         
         // Pick random lane
         int selectedLane = rand() % nLanes;
-        
+        int selectedLane2;
+        do {
+            selectedLane2 = rand() % nLanes;
+        } while (selectedLane == selectedLane2);
         
         
 #ifdef RogueCoarse
@@ -60,11 +67,9 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         selectedLaneColor = lanesGallery->Get(selectedLane); // *** lanesGallery Access ***
         DB("Player %u selected lane %d, currently %u\n", playerColor, selectedLane, selectedLaneColor);
         
-        // Ensure lane is not white
+        // Only shoot color white lanes
         if (selectedLaneColor != white) {
             coarseLock.unlock();
-            DB("Oops... lane %d is %u\n", selectedLane, selectedLaneColor);
-            
             this_thread::sleep_until(timeOfNextShot);
             continue;
         }
@@ -72,28 +77,18 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         // Shoot lane
         returnColor = lanesGallery->Set(selectedLane, playerColor); // *** lanesGallery Access ***
         coarseLock.unlock();
+        assert(returnColor == white); // If synchronizing correctly, will always be white
         DB("Player %u shot lane %d\n", playerColor, selectedLane);
         
-        if (returnColor != white) { // return of white indicates success
-            violetLanes++;
-            DB("*** Dang. We have a violet mess on our hands in lane %d ***\n", selectedLane);
-        } else {
-            roundLanesShot++; //the lane was shot successfully, so one more lane has been shot this round
-            DB("Lane %d colored %u\n", selectedLane, playerColor);
-        }
+        roundLanesShot++; //the lane was shot successfully, so one more lane has been shot this round
         
         // lanes are full when shotCount + violetLanes == total number of lanes
-        if (roundLanesShot + violetLanes == nLanes) {
+        if (roundLanesShot == nLanes) {
             coarseLock.lock();
             //make sure other thread did not already clean
-            if (roundLanesShot + violetLanes == nLanes) {
-                // Reset non-violet lanes back to white
-                for (int i = 0; i < nLanes; i++){
-                    if (lanesGallery->Get(i) != violet){ // *** lanesGallery Access ***
-                        lanesGallery->ClearLane(i); // *** lanesGallery Access ***
-                    }
-                }
-                roundLanesShot = 0; //new round starting now
+            if (roundLanesShot == nLanes) {
+                lanesGallery->Clear(); // Clear lanes
+                roundLanesShot = 0; // new round starting now
             }
             coarseLock.unlock();
         }
@@ -112,12 +107,6 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         
         
         
-#ifdef RogueFine
-        
-#endif
-        
-        
-        
 #ifdef RogueTM
         
 #endif
@@ -126,7 +115,41 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         
         
 #ifdef RogueCoarse2
+        // Check color of selected lane
+        coarseLock.lock();
+        selectedLaneColor = lanesGallery->Get(selectedLane); // *** lanesGallery Access ***
+        selectedLaneColor2 = lanesGallery->Get(selectedLane2); // *** lanesGallery Access ***
+        DB("Player %u selected lanes %d (%u) and %d(%u)\n", playerColor, selectedLane, selectedLaneColor, selectedLane2, selectedLaneColor2);
         
+        // Only shoot color white lanes
+        if (selectedLaneColor != white || selectedLaneColor2 != white) {
+            coarseLock.unlock();
+            this_thread::sleep_until(timeOfNextShot);
+            continue;
+        }
+        
+        // Shoot lane
+        returnColor = lanesGallery->Set(selectedLane, playerColor); // *** lanesGallery Access ***
+        returnColor2 = lanesGallery->Set(selectedLane2, playerColor); // *** lanesGallery Access ***
+        coarseLock.unlock();
+        assert(returnColor == white); // If synchronizing correctly, will always be white
+        assert(returnColor2 == white); // If synchronizing correctly, will always be white
+        DB("Player %u shot lanes %d and %d\n", playerColor, selectedLane, selectedLane2);
+        
+        roundLanesShot += 2; // Two more lane has been shot this round
+        
+        if (roundLanesShot == nLanes) {
+            coarseLock.lock();
+            //make sure other thread did not already clean
+            if (roundLanesShot == nLanes) {
+                lanesGallery->Clear(); // Clear lanes
+                roundLanesShot = 0; // new round starting now
+            }
+            coarseLock.unlock();
+        }
+        
+        // Sleep to control shots to rateShotsPerSecond
+        this_thread::sleep_until(timeOfNextShot);
 #endif
         
         
@@ -181,16 +204,14 @@ void printer(int rate) {
     
 }
 
-
-
 int main(int argc, char** argv) {
-    std::vector<thread> threadsList;
+    vector<thread> threadsList;
     lanesGallery = new Lanes(nLanes);
     lanesGallery->Clear();
     
-    threadsList.push_back(std::thread(&printer, 5));
-    threadsList.push_back(std::thread(&shooterAction, 5, red));
-    threadsList.push_back(std::thread(&shooterAction, 5, blue));
+    threadsList.push_back(thread(&printer, 20));
+    threadsList.push_back(thread(&shooterAction, 10, red));
+    threadsList.push_back(thread(&shooterAction, 10, blue));
     
 #if defined(RogueCoarseCleaner) || defined(RogueFineCleaner) || defined(RogueTMCleaner)
     threadsList.push_back(std::thread(&cleaner));
