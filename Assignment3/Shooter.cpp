@@ -11,7 +11,11 @@ using namespace std;
 // Specify action with definition of: {RogueCoarse, RogueFine, RogueTM, RogueCoarse2, RogueFine2, RogueTM2,
 //                                     RogueCoarseCleaner, RogueFineCleaner, RogueTMCleaner}
 
-#define RogueCoarse
+/* 
+* Define statement was here. Now, choose RogueCoarse type by calling:
+*		make ROGUE=-DRogueCoarse
+* Replace RogueCoarse with the Rogue you want to run
+*/
 
 // Global variables
 Lanes* lanesGallery;

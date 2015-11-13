@@ -1,0 +1,11 @@
+
+all: Shooter
+
+Shooter: Shooter.o 
+	g++ -mrtm -std=c++11 -pthread $(CFLAGS) $< -o $@
+
+Shooter.o: Shooter.cpp
+	g++ -c -mrtm -std=c++11 -pthread $(CFLAGS) $<
+
+clean:
+	rm -rf *o Shooter
