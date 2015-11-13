@@ -28,7 +28,9 @@ do { if (DEBUG_OUTPUT) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
 Lanes* lanesGallery;
 int nLanes = 16;
 int roundLanesShot = 0; //number of lanes shot (blue or red)
-bool execute = true;
+int roundsTotal; //total number of rounds to run
+int roundsCount; //rounds executed so far
+chrono::time_point<chrono::system_clock> roundStartTime;
 mutex coarseLock;
 
 void shooterAction(int rateShotsPerSecond, Color playerColor) {
@@ -64,6 +66,12 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
 #ifdef RogueCoarse
         // Check color of selected lane
         coarseLock.lock();
+			
+				//if the other thread cleaned up the final round, then stop looping
+				if (roundsCount >= roundsTotal){
+					break;
+				}
+
         selectedLaneColor = lanesGallery->Get(selectedLane); // *** lanesGallery Access ***
         DB("Player %u selected lane %d, currently %u\n", playerColor, selectedLane, selectedLaneColor);
         
@@ -192,16 +200,19 @@ void printer(int rate) {
      *
      */
     
-    while (1) {
+		//print out while shots are being fired
+    while (roundsCount < roundsTotal) {
+				//calculate next time to print output
+				auto timeOfNextShot = chrono::system_clock::now() + chrono::milliseconds(1000/rate);
+
         coarseLock.lock();
-#if GRAPHIC_OUTPUT == true
         lanesGallery->Print();
-#endif
         coarseLock.unlock();
-        sleep(1);
+        
+				// Sleep to control shots to rateShotsPerSecond
+        this_thread::sleep_until(timeOfNextShot);
         //cout << lanesGallery->Count();
     }
-    
 }
 
 int main(int argc, char** argv) {
