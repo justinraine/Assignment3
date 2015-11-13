@@ -5,6 +5,7 @@
 #include <vector>
 #include <mutex>
 #include <chrono>
+#include <getopt.h>
 
 using namespace std;
 
@@ -31,7 +32,8 @@ do { if (DEBUG_OUTPUT) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
 Lanes* lanesGallery;
 int nLanes = 4;
 int roundLanesShot = 0; //number of lanes shot (blue or red)
-bool execute = true;
+int roundsTotal; //total number of rounds to run
+int roundsCount; //rounds executed so far
 mutex coarseLock;
 
 void shooterAction(int rateShotsPerSecond, Color playerColor) {
@@ -51,7 +53,7 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
     int violetLanes = 0;
     
     
-    while (execute) {
+    while (roundsCount<roundsTotal) {
         auto timeOfNextShot = chrono::system_clock::now() + chrono::milliseconds(1000/rateShotsPerSecond);
         
         // Pick random lane
@@ -62,6 +64,12 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
 #ifdef RogueCoarse
         // Check color of selected lane
         coarseLock.lock();
+			
+				//if the other thread cleaned up the final round, then stop looping
+				if (roundsCount >= roundsTotal){
+					break;
+				}
+
         selectedLaneColor = lanesGallery->Get(selectedLane); // *** lanesGallery Access ***
         DB("Player %u selected lane %d, currently %u\n", playerColor, selectedLane, selectedLaneColor);
         
@@ -98,7 +106,8 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
                         lanesGallery->ClearLane(i); // *** lanesGallery Access ***
                     }
                 }
-                roundLanesShot = 0; //new round starting now
+                roundLanesShot = 0; 
+								roundsCount++; //new round starting now
             }
             coarseLock.unlock();
         }
@@ -174,7 +183,8 @@ void printer(int rate) {
      *
      */
     
-    while (1) {
+		//print out while shots are being fired
+    while (roundsCount < roundsTotal) {
 				//calculate next time to print output
 				auto timeOfNextShot = chrono::system_clock::now() + chrono::milliseconds(1000/rate);
 
@@ -186,22 +196,65 @@ void printer(int rate) {
         this_thread::sleep_until(timeOfNextShot);
         //cout << lanesGallery->Count();
     }
-    
 }
 
 
+static struct option long_options[] =
+  {
+    {"red shooter rate", required_argument, 0, 'r'},
+    {"blue shooter rate", required_argument, 0, 'b'},
+    {"number of rounds", required_argument, 0, 'n'},
+    {0, 0, 0}
+  };
 
 int main(int argc, char** argv) {
+
+// read input arguments
+	int redRate;
+	int blueRate;
+
+  while (true) {
+
+    int option_index = 0;    
+    int c = getopt_long_only(argc, argv, "r:b:n:",
+                             long_options, &option_index);
+    
+    /* Detect the end of the options. */
+    if (c == -1)
+      break;
+    
+    switch (c) {
+    case 0:
+      /* If this option set a flag, do nothing else now. */
+      break;
+      
+    case 'r':
+      redRate = atoll(optarg);
+      break;
+            
+    case 'b':
+      blueRate = atoi(optarg);
+      break;
+
+    case 'n':
+      roundsTotal = atoi(optarg);
+      break;
+
+    default:
+      exit(1);
+    }
+  }
+//end of reading input arguments
     std::vector<thread> threadsList;
     lanesGallery = new Lanes(nLanes);
     lanesGallery->Clear();
     
 #if GRAPHIC_OUTPUT == true
-    threadsList.push_back(std::thread(&printer, 5));
-#if GRAPHIC_OUTPUT == true
+    threadsList.push_back(std::thread(&printer, redRate + blueRate));
+#endif
 
-    threadsList.push_back(std::thread(&shooterAction, 5, red));
-    threadsList.push_back(std::thread(&shooterAction, 5, blue));
+    threadsList.push_back(std::thread(&shooterAction, redRate, red));
+    threadsList.push_back(std::thread(&shooterAction, blueRate, blue));
     
 #if defined(RogueCoarseCleaner) || defined(RogueFineCleaner) || defined(RogueTMCleaner)
     threadsList.push_back(std::thread(&cleaner));
