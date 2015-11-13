@@ -12,7 +12,7 @@ using namespace std;
 
 // Debug setting
 #define DEBUG_OUTPUT false
-#define GRAPHIC_OUTPUT true
+#define GRAPHIC_OUTPUT false
 
 #define DB(fmt, ...) \
 do { if (DEBUG_OUTPUT) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
@@ -34,6 +34,7 @@ int nLanes = 4;
 int roundLanesShot = 0; //number of lanes shot (blue or red)
 int roundsTotal; //total number of rounds to run
 int roundsCount; //rounds executed so far
+chrono::time_point<chrono::system_clock> roundStartTime;
 mutex coarseLock;
 
 void shooterAction(int rateShotsPerSecond, Color playerColor) {
@@ -44,7 +45,8 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
      *  Rate: Choose a random lane every 1/rate s.
      *  PlayerColor : Red/Blue.
      */
-    
+    // start time for first time (setting in both threads should not make much of a difference)
+		roundStartTime = chrono::system_clock::now();
     srand ((int)playerColor); // seed random number
     
     // Setup variables
@@ -96,18 +98,51 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         }
         
         // lanes are full when shotCount + violetLanes == total number of lanes
-        if (roundLanesShot + violetLanes == nLanes) {
+        if (roundLanesShot + violetLanes >= nLanes) {
             coarseLock.lock();
             //make sure other thread did not already clean
-            if (roundLanesShot + violetLanes == nLanes) {
-                // Reset non-violet lanes back to white
+            if (roundLanesShot + violetLanes >= nLanes) {
+								
+                // Count red and blue lanes (and violet lanes to be safe)
+								int redCount = 0;
+								int blueCount = 0;
+								int violetCount = 0;
+								Color laneColor;
                 for (int i = 0; i < nLanes; i++){
-                    if (lanesGallery->Get(i) != violet){ // *** lanesGallery Access ***
-                        lanesGallery->ClearLane(i); // *** lanesGallery Access ***
-                    }
+										laneColor = lanesGallery->Get(i); // *** lanesGallery Access ***
+                    if (laneColor == blue){ 
+                        blueCount++;
+                    } else if (laneColor == red){
+												redCount++;
+										} else if (laneColor == violet){
+												violetCount++;
+										} else {
+												std::cerr << "error: white lane being cleared" << endl;
+										}
                 }
+								//calculate red and blue shot rates
+								auto roundEndTime = chrono::system_clock::now();
+								chrono::duration<double> roundDuration = roundEndTime-roundStartTime;
+								double redShotRate = ((double) redCount)/roundDuration.count();
+								double blueShotRate = ((double) blueCount)/roundDuration.count();
+
+								//print out Gallery and red and blue shot rates
+								std::cout << endl << "Round " << roundsCount+1 <<" complete" << endl;
+								lanesGallery->Print();
+								std::cout << "Red Shot Rate: " << redShotRate << " shots/second" << endl;
+								std::cout << "Blue Shot Rate: " << blueShotRate << " shots/second" << endl;
+		
+								if (violetCount != 0){
+									std::cout << "There were " << violetCount << "violet lanes" << endl;
+								}
+
+								//clear lanes
+								lanesGallery->Clear();
+
+								//Start new round
+								roundStartTime = chrono::system_clock::now();
                 roundLanesShot = 0; 
-								roundsCount++; //new round starting now
+								roundsCount++;
             }
             coarseLock.unlock();
         }
@@ -196,11 +231,6 @@ void printer(int rate) {
         this_thread::sleep_until(timeOfNextShot);
         //cout << lanesGallery->Count();
     }
-    
-		//print one more time to get the final shot
-		coarseLock.lock();
-    lanesGallery->Print();
-    coarseLock.unlock();
 }
 
 
