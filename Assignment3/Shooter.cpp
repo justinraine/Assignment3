@@ -23,6 +23,12 @@ do { if (DEBUG_OUTPUT) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
 //                                     RogueCoarseCleaner, RogueFineCleaner, RogueTMCleaner}
 #define RogueCoarse2
 
+/* 
+* Define statement was here. Now, choose RogueCoarse type by calling:
+*		make ROGUE=-DRogueCoarse
+* Replace RogueCoarse with the Rogue you want to run
+*/
+
 
 // Global variables
 Lanes* lanesGallery;
@@ -42,6 +48,7 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
      *  PlayerColor : Red/Blue.
      */
     
+    roundStartTime = chrono::system_clock::now();
     srand ((int)chrono::system_clock::now().time_since_epoch().count() / playerColor); // seed random number
     
     // Setup variables
@@ -52,8 +59,8 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
     //int violetLanes = 0;  *** Should never have violet lanes. Use assert statements instead
     
     
-    while (execute) {
-        auto timeOfNextShot = (chrono::system_clock::now() + chrono::milliseconds(1000/rateShotsPerSecond));
+    while (roundsCount<roundsTotal) {
+        auto timeOfNextShot = chrono::system_clock::now() + chrono::milliseconds(1000/rateShotsPerSecond);
         
         // Pick random lane
         int selectedLane = rand() % nLanes;
@@ -94,9 +101,49 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         if (roundLanesShot == nLanes) {
             coarseLock.lock();
             //make sure other thread did not already clean
-            if (roundLanesShot == nLanes) {
-                lanesGallery->Clear(); // Clear lanes
-                roundLanesShot = 0; // new round starting now
+            if (roundLanesShot >= nLanes) {
+                // Get end time of round
+                auto roundEndTime = chrono::system_clock::now();
+                
+                // Count red and blue lanes (and violet lanes to be safe)
+                int redCount = 0;
+                int blueCount = 0;
+//                int violetCount = 0;
+                Color laneColor;
+                for (int i = 0; i < nLanes; i++){
+                    laneColor = lanesGallery->Get(i); // *** lanesGallery Access ***
+                    if (laneColor == blue){
+                        blueCount++;
+                    } else if (laneColor == red){
+                        redCount++;
+//                    } else if (laneColor == violet){
+//                        violetCount++;
+                    } else {
+                        std::cerr << "error: white lane being cleared" << endl;
+                    }
+                }
+                //calculate red and blue shot rates
+                chrono::duration<double> roundDuration = roundEndTime-roundStartTime;
+                double redShotRate = ((double) redCount)/roundDuration.count();
+                double blueShotRate = ((double) blueCount)/roundDuration.count();
+                
+                //print out Gallery and red and blue shot rates
+                std::cout << endl << "Round " << roundsCount+1 <<" complete" << endl;
+                lanesGallery->Print();
+                std::cout << "Red Shot Rate: " << redShotRate << " shots/second" << endl;
+                std::cout << "Blue Shot Rate: " << blueShotRate << " shots/second" << endl;
+                
+//                if (violetCount != 0){
+//                    std::cout << "There were " << violetCount << "violet lanes" << endl;
+//                }
+                
+                //clear lanes
+                lanesGallery->Clear();
+                
+                //Start new round
+                roundStartTime = chrono::system_clock::now();
+                roundLanesShot = 0; 
+                roundsCount++;
             }
             coarseLock.unlock();
         }
@@ -215,14 +262,63 @@ void printer(int rate) {
     }
 }
 
+
+static struct option long_options[] =
+  {
+    {"red shooter rate", required_argument, 0, 'r'},
+    {"blue shooter rate", required_argument, 0, 'b'},
+    {"number of rounds", required_argument, 0, 'n'},
+    {0, 0, 0}
+  };
+
 int main(int argc, char** argv) {
-    vector<thread> threadsList;
+
+// read input arguments
+	int redRate;
+	int blueRate;
+
+  while (true) {
+
+    int option_index = 0;    
+    int c = getopt_long_only(argc, argv, "r:b:n:",
+                             long_options, &option_index);
+    
+    /* Detect the end of the options. */
+    if (c == -1)
+      break;
+    
+    switch (c) {
+    case 0:
+      /* If this option set a flag, do nothing else now. */
+      break;
+      
+    case 'r':
+      redRate = atoll(optarg);
+      break;
+            
+    case 'b':
+      blueRate = atoi(optarg);
+      break;
+
+    case 'n':
+      roundsTotal = atoi(optarg);
+      break;
+
+    default:
+      exit(1);
+    }
+  }
+//end of reading input arguments
+    std::vector<thread> threadsList;
     lanesGallery = new Lanes(nLanes);
     lanesGallery->Clear();
     
-    threadsList.push_back(thread(&printer, 20));
-    threadsList.push_back(thread(&shooterAction, 10, red));
-    threadsList.push_back(thread(&shooterAction, 10, blue));
+#if GRAPHIC_OUTPUT == true
+    threadsList.push_back(std::thread(&printer, redRate + blueRate));
+#endif
+
+    threadsList.push_back(std::thread(&shooterAction, redRate, red));
+    threadsList.push_back(std::thread(&shooterAction, blueRate, blue));
     
 #if defined(RogueCoarseCleaner) || defined(RogueFineCleaner) || defined(RogueTMCleaner)
     threadsList.push_back(std::thread(&cleaner));
