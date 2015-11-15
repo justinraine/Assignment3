@@ -22,7 +22,7 @@ do { if (DEBUG_OUTPUT) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
 
 // Specify action with definition of: {RogueCoarse, RogueFine, RogueTM, RogueCoarse2, RogueFine2, RogueTM2,
 //                                     RogueCoarseCleaner, RogueFineCleaner, RogueTMCleaner}
-#define RogueTM
+#define RogueFine
 
 
 /*
@@ -128,7 +128,7 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         
         //if the other thread cleaned up the final round, then stop looping
         if (roundsCount >= roundsTotal){
-            finelock[selectedLane].unlock();
+            fineLock[selectedLane].unlock();
             break;
         }
         
@@ -195,7 +195,6 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         
         // Only shoot color white lanes
         if (selectedLaneColor != white) {
-            coarseLock.unlock();
             this_thread::sleep_until(timeOfNextShot);
             continue;
         }
@@ -350,27 +349,96 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         
         
 #ifdef RogueCoarseCleaner
+        // Check color of selected lane
+        coarseLock.lock();
         
+        // If the cleaner thread cleaned up the final round, then stop looping
+        if (roundsCount >= roundsTotal){
+            coarseLock.unlock();
+            break;
+        }
+        
+        selectedLaneColor = lanesGallery->Get(selectedLane); // *** lanesGallery Access ***
+        DB("Player %u selected lane %d, currently %u\n", playerColor, selectedLane, selectedLaneColor);
+        
+        // Only shoot color white lanes
+        if (selectedLaneColor != white) {
+            coarseLock.unlock();
+            this_thread::sleep_until(timeOfNextShot);
+            continue;
+        }
+        
+        // Shoot lane
+        returnColor = lanesGallery->Set(selectedLane, playerColor); // *** lanesGallery Access ***
+        coarseLock.unlock();
+        
+        assert(returnColor == white); // If synchronizing correctly, will always be white
+        roundLanesShot++; //the lane was shot successfully, so one more lane has been shot this round
+        if (playerColor == red) {
+            redRoundLanesShot++;
+        } else {
+            blueRoundLanesShot++;
+        }
+        DB("Player %u shot lane %d\n", playerColor, selectedLane);
+        
+        // Sleep to control shots to rateShotsPerSecond
+        this_thread::sleep_until(timeOfNextShot);
 #endif
         
         
         
         
 #ifdef RogueFineCleaner
+				// Check color of selected lane
+        fineLock[selectedLane].lock();
         
+        //if the cleaner thread cleaned up the final round, then stop looping
+        if (roundsCount >= roundsTotal){
+            fineLock[selectedLane].unlock();
+            break;
+        }
+        
+        selectedLaneColor = lanesGallery->Get(selectedLane); // *** lanesGallery Access ***
+        DB("Player %u selected lane %d, currently %u\n", playerColor, selectedLane, selectedLaneColor);
+        
+        // Only shoot color white lanes
+        if (selectedLaneColor != white) {
+            fineLock[selectedLane].unlock();
+            this_thread::sleep_until(timeOfNextShot);
+            continue;
+        }
+        
+        // Shoot lane
+        returnColor = lanesGallery->Set(selectedLane, playerColor); // *** lanesGallery Access ***
+        fineLock[selectedLane].unlock();
+        assert(returnColor == white); // If synchronizing correctly, will always be white
+        DB("Player %u shot lane %d\n", playerColor, selectedLane);
+        
+        if (playerColor == red) {
+            fineCountLock[0].lock();
+            redRoundLanesShot++; //the lane was shot successfully, so one more lane has been shot this round
+            fineCountLock[0].unlock();
+        } else {
+            fineCountLock[1].lock();
+            blueRoundLanesShot++; //the lane was shot successfully, so one more lane has been shot this round
+            fineCountLock[1].unlock();
+        }
+        
+        // Sleep to control shots to rateShotsPerSecond
+        this_thread::sleep_until(timeOfNextShot);
 #endif
         
         
         
         
 #ifdef RogueTMCleaner
-        
+
 #endif
     }
 }
 
 
-void cleaner() {
+void cleaner(int checkRate) {
     
     /*
      *  Cleans up lanes. Needs to synchronize with shooter.
@@ -379,7 +447,46 @@ void cleaner() {
      *  Once all lanes are shot. Cleaner starts up.
      *  Once cleaner starts up shooters wait for cleaner to finish.
      */
+		while (roundsCount < roundsTotal) {
+        auto timeOfNextCheck = chrono::system_clock::now() + chrono::milliseconds(1000/checkRate);
+
+#ifdef RogueCoarseCleaner
+		 // lanes are full when shotCount == total number of lanes
+        if (roundLanesShot == nLanes) {
+            coarseLock.lock();
+            unsafeSetupNextRound();
+            coarseLock.unlock();
+        }
+#endif
+
+
+#ifdef RogueFineCleaner
+     		// lanes are full when shotCount + violetLanes == total number of lanes
+        if ((redRoundLanesShot + blueRoundLanesShot) == nLanes) {
+            for (int i=0; i < nLanes; i++){
+                fineLock[i].lock();
+            }
+            fineCountLock[0].lock();
+            fineCountLock[1].lock();
+            
+            unsafeSetupNextRound();
+            
+            for (int i=0; i < nLanes; i++){
+                fineLock[i].unlock();
+            }
+            fineCountLock[0].unlock();
+            fineCountLock[1].unlock();
+        }
+#endif
     
+
+#ifdef RogueTMCleaner
+        
+#endif
+
+		    // Sleep to control shots to rateShotsPerSecond
+        this_thread::sleep_until(timeOfNextCheck);
+		}
 }
 
 
@@ -467,7 +574,7 @@ int main(int argc, char** argv) {
     threadsList.push_back(std::thread(&shooterAction, blueRate, blue));
     
 #if defined(RogueCoarseCleaner) || defined(RogueFineCleaner) || defined(RogueTMCleaner)
-    threadsList.push_back(std::thread(&cleaner));
+    threadsList.push_back(std::thread(&cleaner, redRate + blueRate));
 #endif
     
     // Clean up threads
