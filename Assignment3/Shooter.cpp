@@ -6,6 +6,7 @@
 #include <mutex>
 #include <chrono>
 #include <getopt.h>
+#include "tsx-tools/rtm.h"
 
 using namespace std;
 
@@ -21,7 +22,7 @@ do { if (DEBUG_OUTPUT) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
 
 // Specify action with definition of: {RogueCoarse, RogueFine, RogueTM, RogueCoarse2, RogueFine2, RogueTM2,
 //                                     RogueCoarseCleaner, RogueFineCleaner, RogueTMCleaner}
-#define RogueCoarse
+#define RogueTM
 
 /*
  * Define statement was here. Now, choose RogueCoarse type by calling:
@@ -41,6 +42,9 @@ mutex coarseLock;
 
 // Function prototypes
 bool unsafeSetupNextRound();
+Color transactionSafeGetLaneColor(int selectedLane);
+void transactionSafeSetLaneColor(int selectedLane, Color playerColor);
+void transactionSafeSetupNextRound();
 
 void shooterAction(int rateShotsPerSecond, Color playerColor) {
     roundStartTime = chrono::system_clock::now();
@@ -49,7 +53,7 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
     // Setup variables
     Color selectedLaneColor;
     __attribute__((unused))Color selectedLaneColor2; // Surpress unsused variable warnings in single lane cases. Only compatable with gcc
-    Color returnColor;
+    __attribute__((unused))Color returnColor;
     __attribute__((unused))Color returnColor2;
     //int violetLanes = 0;  *** Should never have violet lanes. Use assert statements instead
     
@@ -69,8 +73,9 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         // Check color of selected lane
         coarseLock.lock();
         
-        //if the other thread cleaned up the final round, then stop looping
+        // If the other thread cleaned up the final round, then stop looping
         if (roundsCount >= roundsTotal){
+            coarseLock.unlock();
             break;
         }
         
@@ -114,7 +119,34 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         
         
 #ifdef RogueTM
+        //if the other thread cleaned up the final round, then stop looping
+        if (roundsCount >= roundsTotal){
+            break;
+        }
         
+        selectedLaneColor = transactionSafeGetLaneColor(selectedLane);
+        DB("Player %u selected lane %d, currently %u\n", playerColor, selectedLane, selectedLaneColor);
+        
+        // Only shoot color white lanes
+        if (selectedLaneColor != white) {
+            coarseLock.unlock();
+            this_thread::sleep_until(timeOfNextShot);
+            continue;
+        }
+        
+        // Shoot lane
+        transactionSafeSetLaneColor(selectedLane, playerColor);
+        DB("Player %u shot lane %d\n", playerColor, selectedLane);
+        
+        roundLanesShot++; //the lane was shot successfully, so one more lane has been shot this round
+        
+        // lanes are full when shotCount + violetLanes == total number of lanes
+        if (roundLanesShot == nLanes) {
+            transactionSafeSetupNextRound();
+        }
+        
+        // Sleep to control shots to rateShotsPerSecond
+        this_thread::sleep_until(timeOfNextShot);
 #endif
         
         
@@ -123,6 +155,13 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
 #ifdef RogueCoarse2
         // Check color of selected lane
         coarseLock.lock();
+        
+        // If the other thread cleaned up the final round, then exit while loop
+        if (roundsCount >= roundsTotal){
+            coarseLock.unlock();
+            break;
+        }
+        
         selectedLaneColor = lanesGallery->Get(selectedLane); // *** lanesGallery Access ***
         selectedLaneColor2 = lanesGallery->Get(selectedLane2); // *** lanesGallery Access ***
         DB("Player %u selected lanes %d (%u) and %d(%u)\n", playerColor, selectedLane, selectedLaneColor, selectedLane2, selectedLaneColor2);
@@ -338,4 +377,73 @@ bool unsafeSetupNextRound() {
 }
 
 
+Color transactionSafeGetLaneColor(int selectedLane) {
+    mutex fallbackLock;
+    bool inFallbackPath;
+    Color selectedLaneColor;
+    
+    if(_xbegin() == _XBEGIN_STARTED) {
+        if(inFallbackPath) {
+            _xabort(0);
+        }
+        
+        selectedLaneColor = lanesGallery->Get(selectedLane);
+        _xend();
+    }
+    else{
+        fallbackLock.lock();
+        inFallbackPath = true;
+        selectedLaneColor = lanesGallery->Get(selectedLane);
+        inFallbackPath = false;
+        fallbackLock.unlock();
+    }
+    
+    return selectedLaneColor;
+}
 
+
+void transactionSafeSetLaneColor(int selectedLane, Color playerColor) {
+    mutex fallbackLock;
+    bool inFallbackPath;
+    Color returnColor;
+    
+    if(_xbegin() == _XBEGIN_STARTED) {
+        if(inFallbackPath) {
+            _xabort(0);
+        }
+        
+        returnColor = lanesGallery->Set(selectedLane, playerColor);
+        _xend();
+    }
+    else{
+        fallbackLock.lock();
+        inFallbackPath = true;
+        returnColor = lanesGallery->Set(selectedLane, playerColor);
+        inFallbackPath = false;
+        fallbackLock.unlock();
+    }
+    
+    assert(returnColor == white); // Should always return white if synchronizing correctly
+}
+
+
+void transactionSafeSetupNextRound() {
+    mutex fallbackLock;
+    bool inFallbackPath;
+    
+    if(_xbegin() == _XBEGIN_STARTED) {
+        if(inFallbackPath) {
+            _xabort(0);
+        }
+        
+        unsafeSetupNextRound();
+        _xend();
+    }
+    else{
+        fallbackLock.lock();
+        inFallbackPath = true;
+        unsafeSetupNextRound();
+        inFallbackPath = false;
+        fallbackLock.unlock();
+    }
+}
