@@ -11,7 +11,7 @@ using namespace std;
 
 
 // Debug setting
-#define DEBUG_OUTPUT true
+#define DEBUG_OUTPUT false
 #define GRAPHIC_OUTPUT false
 
 #define DB(fmt, ...) \
@@ -21,7 +21,7 @@ do { if (DEBUG_OUTPUT) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
 
 // Specify action with definition of: {RogueCoarse, RogueFine, RogueTM, RogueCoarse2, RogueFine2, RogueTM2,
 //                                     RogueCoarseCleaner, RogueFineCleaner, RogueTMCleaner}
-#define RogueCoarse2
+#define RogueFine
 
 /* 
 * Define statement was here. Now, choose RogueCoarse type by calling:
@@ -34,10 +34,14 @@ do { if (DEBUG_OUTPUT) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
 Lanes* lanesGallery;
 int nLanes = 16;
 int roundLanesShot = 0; //number of lanes shot (blue or red)
+int redRoundLanesShot = 0; //for finegrain cases
+int blueRoundLanesShot = 0; //for finegrain cases
 int roundsTotal; //total number of rounds to run
 int roundsCount; //rounds executed so far
 chrono::time_point<chrono::system_clock> roundStartTime;
 mutex coarseLock;
+mutex * fineLock = new mutex [nLanes];
+mutex fineCountLock[2]; //lock to protect counts of lanes shot by each thread. 0 for red, 1 for blue
 
 void shooterAction(int rateShotsPerSecond, Color playerColor) {
     
@@ -91,11 +95,12 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         
         // Shoot lane
         returnColor = lanesGallery->Set(selectedLane, playerColor); // *** lanesGallery Access ***
+				roundLanesShot++; //the lane was shot successfully, so one more lane has been shot this round
         coarseLock.unlock();
         assert(returnColor == white); // If synchronizing correctly, will always be white
         DB("Player %u shot lane %d\n", playerColor, selectedLane);
         
-        roundLanesShot++; //the lane was shot successfully, so one more lane has been shot this round
+        
         
         // lanes are full when shotCount + violetLanes == total number of lanes
         if (roundLanesShot == nLanes) {
@@ -156,7 +161,88 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         
         
 #ifdef RogueFine
+         // Check color of selected lane
+        fineLock[selectedLane].lock();
+			
+				//if the other thread cleaned up the final round, then stop looping
+				if (roundsCount >= roundsTotal){
+					break;
+				}
+
+        selectedLaneColor = lanesGallery->Get(selectedLane); // *** lanesGallery Access ***
+        DB("Player %u selected lane %d, currently %u\n", playerColor, selectedLane, selectedLaneColor);
         
+        // Only shoot color white lanes
+        if (selectedLaneColor != white) {
+            fineLock[selectedLane].unlock();
+            this_thread::sleep_until(timeOfNextShot);
+            continue;
+        }
+        
+        // Shoot lane
+        returnColor = lanesGallery->Set(selectedLane, playerColor); // *** lanesGallery Access ***
+        fineLock[selectedLane].unlock();
+        assert(returnColor == white); // If synchronizing correctly, will always be white
+        DB("Player %u shot lane %d\n", playerColor, selectedLane);
+
+				if (playerColor == red) {
+					fineCountLock[0].lock();
+					redRoundLanesShot++; //the lane was shot successfully, so one more lane has been shot this round
+					fineCountLock[0].unlock();
+				} else {
+					fineCountLock[1].lock();
+					blueRoundLanesShot++; //the lane was shot successfully, so one more lane has been shot this round
+					fineCountLock[1].unlock();
+				}
+        
+
+        
+        // lanes are full when shotCount + violetLanes == total number of lanes
+        if ((redRoundLanesShot + blueRoundLanesShot) == nLanes) {
+            for (int i=0; i < nLanes; i++){
+							fineLock[i].lock();
+						}
+
+            //make sure other thread did not already clean
+            if ((redRoundLanesShot + blueRoundLanesShot) >= nLanes) {
+                // Get end time of round
+                auto roundEndTime = chrono::system_clock::now();
+                
+                //calculate red and blue shot rates
+                chrono::duration<double> roundDuration = roundEndTime-roundStartTime;
+                double redShotRate = ((double) redRoundLanesShot)/roundDuration.count();
+                double blueShotRate = ((double) blueRoundLanesShot)/roundDuration.count();
+                
+                //print out Gallery and red and blue shot rates
+                std::cout << endl << "Round " << roundsCount+1 <<" complete" << endl;
+                lanesGallery->Print();
+                std::cout << "Red Shot Rate: " << redShotRate << " shots/second" << endl;
+                std::cout << "Blue Shot Rate: " << blueShotRate << " shots/second" << endl;
+                
+//                if (violetCount != 0){
+//                    std::cout << "There were " << violetCount << "violet lanes" << endl;
+//                }
+                
+                //clear lanes
+                lanesGallery->Clear();
+                
+                //Start new round
+                roundStartTime = chrono::system_clock::now();
+								fineCountLock[0].lock();
+								fineCountLock[1].lock();
+								redRoundLanesShot = 0;
+                blueRoundLanesShot = 0; 
+								fineCountLock[0].unlock();
+								fineCountLock[1].unlock();
+                roundsCount++;
+            }
+            for (int i=0; i < nLanes; i++){
+							fineLock[i].unlock();
+						}
+        }
+        
+        // Sleep to control shots to rateShotsPerSecond
+        this_thread::sleep_until(timeOfNextShot);
 #endif
         
         
