@@ -23,6 +23,7 @@ do { if (DEBUG_OUTPUT) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
 
 // Specify action with definition of: {RogueCoarse, RogueFine, RogueTM, RogueCoarse2, RogueFine2, RogueTM2,
 //                                     RogueCoarseCleaner, RogueFineCleaner, RogueTMCleaner}
+#define RogueTM
 
 #define RogueFineCleaner
 
@@ -43,11 +44,11 @@ int blueRoundLanesShot = 0; //for finegrain cases
 int roundsTotal; //total number of rounds to run
 int roundsCount; //rounds executed so far
 int successfulTransactions = 0;
-int TMFallbackCount = 0;
+int abortedTransactions = 0;
 int TMFallbackSuccesses = 0;
 int synchronizationErrors = 0; // ie. non-white lane shot
 int shotAttempts = 0;
-int TMAbortedShots = 0; // Abort if selected lane is not white
+int nonWhiteSelections = 0; // Abort if selected lane is not white
 bool roundSummaryPrinted = false;
 chrono::time_point<chrono::system_clock> roundStartTime;
 mutex coarseLock;
@@ -799,11 +800,12 @@ void unsafePrintRoundSummary(double redShotRate, double blueShotRate) {
     printf("Red Shot Rate: %.2f shots/second\n", redShotRate);
     printf("Blue Shot Rate: %.2f shots/second\n", blueShotRate);
 #if defined(RogueTM) || defined(RogueTM2) || defined(RogueTMCleaner)
+    cout << "Shot Attempts: " << shotAttempts << endl;
     cout << "Successful Transaction Shots: " << successfulTransactions << endl;
     cout << "Successful Fallback Shots: " << TMFallbackSuccesses << endl;
-    cout << "Aborted Shots (Non-white Selections): " << TMAbortedShots << endl;
+    printf("Abort Rate: %.2f%%\n", abortedTransactions/(double)shotAttempts*100);
+    cout << "Non-white Lane Selections: " << nonWhiteSelections << endl;
     cout << "Synchronization Errors: " << synchronizationErrors << endl;
-    printf("Overall Transaction Success Rate: %.2f%%\n", successfulTransactions/(double)shotAttempts*100);
 #endif
 }
 
@@ -827,12 +829,12 @@ void unsafeUpdateRoundGlobalVariables() {
     blueRoundLanesShot = 0;
     roundsCount++;
     roundSummaryPrinted = false;
-    TMFallbackCount = 0;
+    abortedTransactions = 0;
     successfulTransactions = 0;
     TMFallbackSuccesses = 0;
     synchronizationErrors = 0;
     shotAttempts = 0;
-    TMAbortedShots = 0;
+    nonWhiteSelections = 0;
 }
 
 
@@ -905,7 +907,7 @@ bool tryTransactionSafeShot(int selectedLane, Color playerColor) {
         if(!inFallbackPath) {
             selectedLaneColor = lanesGallery->Get(selectedLane);
             if (selectedLaneColor != white) {
-                TMAbortedShots++;
+                nonWhiteSelections++;
                 return false;
             }
             
@@ -931,11 +933,11 @@ bool tryTransactionSafeShot(int selectedLane, Color playerColor) {
     else{
         inFallbackPath = true;
         fallbackLock.lock();
-        TMFallbackCount++;
+        abortedTransactions++;
         
         selectedLaneColor = lanesGallery->Get(selectedLane);
         if (selectedLaneColor != white) {
-            TMAbortedShots++;
+            nonWhiteSelections++;
             inFallbackPath = false;
             fallbackLock.unlock();
             return false;
@@ -975,7 +977,7 @@ bool tryTransactionSafeShot2(int selectedLane, int selectedLane2, Color playerCo
             selectedLaneColor = lanesGallery->Get(selectedLane);
             selectedLaneColor2 = lanesGallery->Get(selectedLane2);
             if (selectedLaneColor != white || selectedLaneColor2 != white) {
-                TMAbortedShots += 2;
+                nonWhiteSelections += 2;
                 return false;
             }
             
@@ -1007,12 +1009,12 @@ bool tryTransactionSafeShot2(int selectedLane, int selectedLane2, Color playerCo
     else{
         inFallbackPath = true;
         fallbackLock.lock();
-        TMFallbackCount += 2;
+        abortedTransactions ++;
         
         selectedLaneColor = lanesGallery->Get(selectedLane);
         selectedLaneColor2 = lanesGallery->Get(selectedLane2);
         if (selectedLaneColor != white || selectedLaneColor2 != white) {
-            TMAbortedShots += 2;
+            nonWhiteSelections += 2;
             inFallbackPath = false;
             fallbackLock.unlock();
             return false;
