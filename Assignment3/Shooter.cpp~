@@ -75,6 +75,7 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         
         //if the other thread cleaned up the final round, then stop looping
         if (roundsCount >= roundsTotal){
+						coarseLock.unlock();
             break;
         }
         
@@ -122,6 +123,7 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
 			
 				//if the other thread cleaned up the final round, then stop looping
 				if (roundsCount >= roundsTotal){
+					finelock[selectedLane].unlock();
 					break;
 				}
 
@@ -191,6 +193,12 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         selectedLaneColor2 = lanesGallery->Get(selectedLane2); // *** lanesGallery Access ***
         DB("Player %u selected lanes %d (%u) and %d(%u)\n", playerColor, selectedLane, selectedLaneColor, selectedLane2, selectedLaneColor2);
         
+				//if the other thread cleaned up the final round, then stop looping
+        if (roundsCount >= roundsTotal){
+						coarseLock.unlock();
+            break;
+        }
+
         // Only shoot color white lanes
         if (selectedLaneColor != white || selectedLaneColor2 != white) {
             coarseLock.unlock();
@@ -227,7 +235,85 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         
         
 #ifdef RogueFine2
+				// get locks in ascending index order to avoid deadlocking
+				if (selectedLane < selectedLane2){
+        	fineLock[selectedLane].lock();
+					fineLock[selectedLane2].lock();
+				} else {
+					fineLock[selectedLane2].lock();
+					fineLock[selectedLane].lock();
+				}
+
+				//if the other thread cleaned up the final round, then stop looping
+				if (roundsCount >= roundsTotal){
+					if (selectedLane < selectedLane2){
+        	fineLock[selectedLane].lock();
+					fineLock[selectedLane2].lock();
+				} else {
+					fineLock[selectedLane2].lock();
+					fineLock[selectedLane].lock();
+				}
+					break;
+				}
+
+        // Check color of selected lanes
+        selectedLaneColor = lanesGallery->Get(selectedLane); // *** lanesGallery Access ***
+				selectedLaneColor2 = lanesGallery->Get(selectedLane2); // *** lanesGallery Access ***
+        DB("Player %u selected lanes %d (%u) and %d(%u)\n", playerColor, selectedLane, selectedLaneColor, selectedLane2, selectedLaneColor2);
         
+        // Only shoot color white lanes
+        if (selectedLaneColor != white || selectedLaneColor2 != white) {
+            if (selectedLane < selectedLane2){
+        			fineLock[selectedLane].lock();
+							fineLock[selectedLane2].lock();
+						} else {
+							fineLock[selectedLane2].lock();
+							fineLock[selectedLane].lock();
+						}
+            this_thread::sleep_until(timeOfNextShot);
+            continue;
+        }
+        
+        // Shoot lane
+        returnColor = lanesGallery->Set(selectedLane, playerColor); // *** lanesGallery Access ***
+				returnColor2 = lanesGallery->Set(selectedLane2, playerColor); // *** lanesGallery Access ***
+        fineLock[selectedLane].unlock();
+				fineLock[selectedLane2].unlock();
+        assert(returnColor == white); // If synchronizing correctly, will always be white
+        assert(returnColor2 == white); // If synchronizing correctly, will always be white
+        DB("Player %u shot lanes %d and %d\n", playerColor, selectedLane, selectedLane2);
+
+				if (playerColor == red) {
+					fineCountLock[0].lock();
+					redRoundLanesShot += 2; //the lane was shot successfully, so 2 more lanes has been shot this round
+					fineCountLock[0].unlock();
+				} else {
+					fineCountLock[1].lock();
+					blueRoundLanesShot += 2; //the lane was shot successfully, so 2 more lanes has been shot this round
+					fineCountLock[1].unlock();
+				}
+        
+
+        
+        // lanes are full when shotCount == total number of lanes
+        if ((redRoundLanesShot + blueRoundLanesShot) == nLanes) {
+            for (int i=0; i < nLanes; i++){
+							fineLock[i].lock();
+						}
+						fineCountLock[0].lock();
+						fineCountLock[1].lock();
+
+            unsafeSetupNextRound();
+
+            for (int i=0; i < nLanes; i++){
+							fineLock[i].unlock();
+						}
+						fineCountLock[0].unlock();
+						fineCountLock[1].unlock();
+        }
+        
+        // Sleep to control shots to rateShotsPerSecond
+        this_thread::sleep_until(timeOfNextShot);
 #endif
         
         
