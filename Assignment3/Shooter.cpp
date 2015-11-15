@@ -7,6 +7,7 @@
 #include <chrono>
 #include <getopt.h>
 #include "tsx-tools/rtm.h"
+#include <condition_variable>
 
 using namespace std;
 
@@ -24,9 +25,10 @@ do { if (DEBUG_OUTPUT) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
 //                                     RogueCoarseCleaner, RogueFineCleaner, RogueTMCleaner}
 #define RogueTM
 
+#define RogueCoarseCleaner
 
 /*
- * Define statement was here. Now, choose RogueCoarse type by calling:
+ * You can also choose RogueCoarse type by calling:
  *		make ROGUE=-DRogueCoarse
  * Replace RogueCoarse with the Rogue you want to run
  * Must delete existing Shooter and Shooter.o from build folder to change Rogue type
@@ -52,6 +54,10 @@ chrono::time_point<chrono::system_clock> roundStartTime;
 mutex coarseLock;
 mutex * fineLock = new mutex [nLanes];
 mutex fineCountLock[2]; //lock to protect counts of lanes shot by each thread. 0 for red, 1 for blue
+condition_variable cv; //used to wake up and wait for cleaner
+mutex cleanerLock; //used to wake up and wait for cleaner
+bool lanesFull = false; // for cleaner conditional variable
+bool lanesCleaned = false; //for cleaner conditional variable
 mutex printLock;
 
 
@@ -86,7 +92,7 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
     
     while (roundsCount < roundsTotal) {
         auto timeOfNextShot = chrono::system_clock::now() + chrono::milliseconds(1000/rateShotsPerSecond);
-        
+
         // Pick random lane
         int selectedLane = rand() % nLanes;
         int selectedLane2;
@@ -149,7 +155,7 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         
         //if the other thread cleaned up the final round, then stop looping
         if (roundsCount >= roundsTotal){
-            finelock[selectedLane].unlock();
+            fineLock[selectedLane].unlock();
             break;
         }
         
@@ -391,21 +397,153 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         
 #pragma mark RogueCoarseCleaner
 #ifdef RogueCoarseCleaner
+        // Check color of selected lane
+        coarseLock.lock();
         
+        // If the cleaner thread cleaned up the final round, then stop looping
+        if (roundsCount >= roundsTotal){
+            coarseLock.unlock();
+            break;
+        }
+        
+        selectedLaneColor = lanesGallery->Get(selectedLane); // *** lanesGallery Access ***
+        DB("Player %u selected lane %d, currently %u\n", playerColor, selectedLane, selectedLaneColor);
+        
+        // Only shoot color white lanes
+        if (selectedLaneColor != white) {
+            coarseLock.unlock();
+            this_thread::sleep_until(timeOfNextShot);
+            continue;
+        }
+        
+        // Shoot lane
+        returnColor = lanesGallery->Set(selectedLane, playerColor); // *** lanesGallery Access ***
+        coarseLock.unlock();
+        
+        assert(returnColor == white); // If synchronizing correctly, will always be white
+        roundLanesShot++; //the lane was shot successfully, so one more lane has been shot this round
+        if (playerColor == red) {
+            redRoundLanesShot++;
+        } else {
+            blueRoundLanesShot++;
+        }
+
+ 				DB("Player %u shot lane %d\n", playerColor, selectedLane);
+				
+				//wake up cleaner if lanes full
+				if (redRoundLanesShot + blueRoundLanesShot == nLanes){
+					{
+		      	std::lock_guard<std::mutex> uLock(cleanerLock);
+						lanesFull = true;
+		  		}
+		  		cv.notify_one();
+	 
+					// wait for the cleaner
+					{
+						  std::unique_lock<std::mutex> uLock(cleanerLock);
+							
+						  cv.wait(uLock,[]{return lanesCleaned;});
+					}
+				}
+        
+        // Sleep to control shots to rateShotsPerSecond
+        this_thread::sleep_until(timeOfNextShot);
 #endif
         
         
         
 #pragma mark RogueFineCleaner
 #ifdef RogueFineCleaner
+				// Check color of selected lane
+        fineLock[selectedLane].lock();
         
+        //if the cleaner thread cleaned up the final round, then stop looping
+        if (roundsCount >= roundsTotal){
+            fineLock[selectedLane].unlock();
+            break;
+        }
+        
+        selectedLaneColor = lanesGallery->Get(selectedLane); // *** lanesGallery Access ***
+        DB("Player %u selected lane %d, currently %u\n", playerColor, selectedLane, selectedLaneColor);
+        
+        // Only shoot color white lanes
+        if (selectedLaneColor != white) {
+            fineLock[selectedLane].unlock();
+            this_thread::sleep_until(timeOfNextShot);
+            continue;
+        }
+        
+        // Shoot lane
+        returnColor = lanesGallery->Set(selectedLane, playerColor); // *** lanesGallery Access ***
+        fineLock[selectedLane].unlock();
+        assert(returnColor == white); // If synchronizing correctly, will always be white
+        DB("Player %u shot lane %d\n", playerColor, selectedLane);
+        
+        if (playerColor == red) {
+            fineCountLock[0].lock();
+            redRoundLanesShot++; //the lane was shot successfully, so one more lane has been shot this round
+            fineCountLock[0].unlock();
+        } else {
+            fineCountLock[1].lock();
+            blueRoundLanesShot++; //the lane was shot successfully, so one more lane has been shot this round
+            fineCountLock[1].unlock();
+        }
+        
+				//wake up cleaner if lanes full
+				if (redRoundLanesShot + blueRoundLanesShot >= nLanes){
+					{
+		      	std::lock_guard<std::mutex> uLock(cleanerLock);
+						lanesFull = true;
+		  		}
+		  		cv.notify_one();
+	 
+					// wait for the cleaner
+					{
+						  std::unique_lock<std::mutex> uLock(cleanerLock);
+						  cv.wait(uLock, []{return lanesCleaned;});
+					}
+				}
+
+        // Sleep to control shots to rateShotsPerSecond
+
+        this_thread::sleep_until(timeOfNextShot);
 #endif
         
         
         
 #pragma mark RogueTMCleaner
 #ifdef RogueTMCleaner
+				//if the cleaner thread cleaned up the final round, then stop looping
+        if (roundsCount >= roundsTotal){
+            break;
+        }
         
+        DB("Player %u selected lane %d, currently %u\n", playerColor, selectedLane, transactionSafeGetLaneColor(selectedLane));
+        
+        if (tryTransactionSafeShot(selectedLane, playerColor) == false) {
+            this_thread::sleep_until(timeOfNextShot);
+            continue;
+        } // else selectedLane was sucessfully shot playerColor
+        
+        DB("Player %u shot lane %d\n", playerColor, selectedLane);
+        
+				//wake up cleaner if lanes full
+				if (redRoundLanesShot + blueRoundLanesShot >= nLanes){
+					{
+		      	std::lock_guard<std::mutex> uLock(cleanerLock);
+						lanesFull = true;
+		  		}
+		  		cv.notify_one();
+	 
+					// wait for the cleaner
+					{
+						  std::unique_lock<std::mutex> uLock(cleanerLock);
+						  cv.wait(uLock, []{return lanesCleaned;});
+					}
+				}
+        
+        // Sleep to control shots to rateShotsPerSecond
+        this_thread::sleep_until(timeOfNextShot);
 #endif
     }
 }
@@ -420,7 +558,62 @@ void cleaner() {
      *  Once all lanes are shot. Cleaner starts up.
      *  Once cleaner starts up shooters wait for cleaner to finish.
      */
+		while (roundsCount < roundsTotal) {
+
+   	// Wait until woken up by a shooter
+    std::unique_lock<std::mutex> uLock(cleanerLock);
+
+		// check to make sure wake-up was not spurious
+    	cv.wait(uLock, []{return lanesFull;});
+		
+#ifdef RogueCoarseCleaner
+		 // lanes are full when shotCount == total number of lanes
+        if (roundLanesShot == nLanes) {
+            coarseLock.lock();
+            unsafeSetupNextRound();
+						lanesFull = false;
+            coarseLock.unlock();
+        }
+#endif
+
+
+#ifdef RogueFineCleaner
+     		// lanes are full when shotCount + violetLanes == total number of lanes
+        if ((redRoundLanesShot + blueRoundLanesShot) >= nLanes) {
+            for (int i=0; i < nLanes; i++){
+                fineLock[i].lock();
+            }
+            fineCountLock[0].lock();
+            fineCountLock[1].lock();
+            
+            unsafeSetupNextRound();
+						lanesFull = false;
+            
+            for (int i=0; i < nLanes; i++){
+                fineLock[i].unlock();
+            }
+						fineCountLock[0].unlock();
+            fineCountLock[1].unlock();
+        }
+#endif
     
+
+#ifdef RogueTMCleaner
+        // lanes are full when shotCount == total number of lanes
+        if (roundLanesShot >= nLanes || (redRoundLanesShot + blueRoundLanesShot >= nLanes)) {
+            double redShotRate, blueShotRate;
+            calculateShotRates(redShotRate, blueShotRate);
+            safePrintRoundSummary(redShotRate, blueShotRate);
+            transactionSafeSetupNextRound();
+						lanesFull = false;
+        }
+#endif
+
+    		// Wake up shooter
+				lanesCleaned = true;
+			  uLock.unlock();
+    		cv.notify_all();
+		}
 }
 
 
@@ -552,7 +745,6 @@ void calculateShotRates(double &redShotRate, double &blueShotRate) {
     blueShotRate = blueRoundLanesShot/(double)roundDuration.count();
 }
 
-
 void unsafePrintRoundSummary(double redShotRate, double blueShotRate) {
     // Print lanesGallery and red and blue shot rates
     cout << endl << "Round " << roundsCount+1 <<" Summary" << endl;
@@ -599,6 +791,7 @@ void unsafeUpdateRoundGlobalVariables() {
 
 
 #pragma mark Transaction Functions
+#if defined(RogueTM) || defined(RogueTM2) || defined(RogueTMCleaner)
 
 // *****************************
 // *** Transaction Functions ***
@@ -844,3 +1037,4 @@ void transactionSafeSetupNextRound() {
         fallbackLock.unlock();
     }
 }
+#endif
