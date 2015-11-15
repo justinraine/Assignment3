@@ -22,8 +22,6 @@ do { if (DEBUG_OUTPUT) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
 // Specify action with definition of: {RogueCoarse, RogueFine, RogueTM, RogueCoarse2, RogueFine2, RogueTM2,
 //                                     RogueCoarseCleaner, RogueFineCleaner, RogueTMCleaner}
 
-#define RogueFine
-
 
 /*
  * Define statement was here. Now, choose RogueCoarse type by calling:
@@ -93,13 +91,18 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         // Shoot lane
         returnColor = lanesGallery->Set(selectedLane, playerColor); // *** lanesGallery Access ***
 				roundLanesShot++; //the lane was shot successfully, so one more lane has been shot this round
+				if (playerColor == red){
+					redRoundLanesShot++;
+				} else {
+					blueRoundLanesShot++;
+				}
         coarseLock.unlock();
         assert(returnColor == white); // If synchronizing correctly, will always be white
         DB("Player %u shot lane %d\n", playerColor, selectedLane);
         
         
         
-        // lanes are full when shotCount + violetLanes == total number of lanes
+        // lanes are full when shotCount == total number of lanes
         if (roundLanesShot == nLanes) {
             coarseLock.lock();
             unsafeSetupNextRound();
@@ -155,43 +158,16 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
             for (int i=0; i < nLanes; i++){
 							fineLock[i].lock();
 						}
+						fineCountLock[0].lock();
+						fineCountLock[1].lock();
 
-            //make sure other thread did not already clean
-            if ((redRoundLanesShot + blueRoundLanesShot) >= nLanes) {
-                // Get end time of round
-                auto roundEndTime = chrono::system_clock::now();
-                
-                //calculate red and blue shot rates
-                chrono::duration<double> roundDuration = roundEndTime-roundStartTime;
-                double redShotRate = ((double) redRoundLanesShot)/roundDuration.count();
-                double blueShotRate = ((double) blueRoundLanesShot)/roundDuration.count();
-                
-                //print out Gallery and red and blue shot rates
-                std::cout << endl << "Round " << roundsCount+1 <<" complete" << endl;
-                lanesGallery->Print();
-                std::cout << "Red Shot Rate: " << redShotRate << " shots/second" << endl;
-                std::cout << "Blue Shot Rate: " << blueShotRate << " shots/second" << endl;
-                
-//                if (violetCount != 0){
-//                    std::cout << "There were " << violetCount << "violet lanes" << endl;
-//                }
-                
-                //clear lanes
-                lanesGallery->Clear();
-                
-                //Start new round
-                roundStartTime = chrono::system_clock::now();
-								fineCountLock[0].lock();
-								fineCountLock[1].lock();
-								redRoundLanesShot = 0;
-                blueRoundLanesShot = 0; 
-								fineCountLock[0].unlock();
-								fineCountLock[1].unlock();
-                roundsCount++;
-            }
+            unsafeSetupNextRound();
+
             for (int i=0; i < nLanes; i++){
 							fineLock[i].unlock();
 						}
+						fineCountLock[0].unlock();
+						fineCountLock[1].unlock();
         }
         
         // Sleep to control shots to rateShotsPerSecond
@@ -231,7 +207,12 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         DB("Player %u shot lanes %d and %d\n", playerColor, selectedLane, selectedLane2);
         
         roundLanesShot += 2; // Two more lane has been shot this round
-        
+        if (playerColor == red){
+					redRoundLanesShot += 2;
+				} else {
+					blueRoundLanesShot += 2;
+				}
+
         if (roundLanesShot == nLanes) {
             coarseLock.lock();
             unsafeSetupNextRound();
@@ -372,34 +353,14 @@ int main(int argc, char** argv) {
 // WARNING: Not threadsafe. Provide synchronization in calling function.
 bool unsafeSetupNextRound() {
     //make sure other thread did not already clean
-    if (roundLanesShot >= nLanes) {
+    if (roundLanesShot >= nLanes || (redRoundLanesShot + blueRoundLanesShot) >= nLanes) {
         // Get end time of round
         auto roundEndTime = chrono::system_clock::now();
         
-        // Count red and blue lanes (and violet lanes to be safe)
-        int redCount = 0;
-        int blueCount = 0;
-        //int violetCount = 0;
-        Color laneColor;
-        
-        for (int i = 0; i < nLanes; i++) {
-            laneColor = lanesGallery->Get(i); // *** lanesGallery Access ***
-            
-            if (laneColor == blue) {
-                blueCount++;
-            } else if (laneColor == red) {
-                redCount++;
-                //} else if (laneColor == violet){
-                //violetCount++;
-            } else {
-                std::cerr << "error: white lane being cleared" << endl;
-            }
-        }
-        
         // Calculate red and blue shot rates
         chrono::duration<double> roundDuration = roundEndTime-roundStartTime;
-        double redShotRate = ((double) redCount)/roundDuration.count();
-        double blueShotRate = ((double) blueCount)/roundDuration.count();
+        double redShotRate = ((double) redRoundLanesShot)/roundDuration.count();
+        double blueShotRate = ((double) blueRoundLanesShot)/roundDuration.count();
         
         // Print lanesGallery and red and blue shot rates
         std::cout << endl << "Round " << roundsCount+1 <<" complete" << endl;
@@ -417,6 +378,8 @@ bool unsafeSetupNextRound() {
         // Start new round
         roundStartTime = chrono::system_clock::now();
         roundLanesShot = 0;
+				redRoundLanesShot = 0;
+				blueRoundLanesShot = 0;
         roundsCount++;
         
         return true;
