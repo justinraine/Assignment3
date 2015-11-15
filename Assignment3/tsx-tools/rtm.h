@@ -43,9 +43,9 @@ static __rtm_force_inline void _xend(void)
 	 asm volatile(".byte 0x0f,0x01,0xd5" ::: "memory");
 }
 
-static __rtm_force_inline void _xabort(const unsigned int status)
+static __rtm_force_inline void _xabort()
 {
-	asm volatile(".byte 0xc6,0xf8,%P0" :: "i" (status) : "memory");
+	asm volatile(".byte 0xc6,0xf8,0x00" ::: "memory");
 }
 
 static __rtm_force_inline int _xtest(void)

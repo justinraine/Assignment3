@@ -23,13 +23,14 @@ do { if (DEBUG_OUTPUT) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
 
 // Specify action with definition of: {RogueCoarse, RogueFine, RogueTM, RogueCoarse2, RogueFine2, RogueTM2,
 //                                     RogueCoarseCleaner, RogueFineCleaner, RogueTMCleaner}
-#define RogueCoarseCleaner
 
+#define RogueFine2
 
 /*
  * You can also choose RogueCoarse type by calling:
  *		make ROGUE=-DRogueCoarse
  * Replace RogueCoarse with the Rogue you want to run
+ * Must delete existing Shooter and Shooter.o from build folder to change Rogue type
  */
 
 
@@ -41,7 +42,13 @@ int redRoundLanesShot = 0; //for finegrain cases
 int blueRoundLanesShot = 0; //for finegrain cases
 int roundsTotal; //total number of rounds to run
 int roundsCount; //rounds executed so far
-int transactionConflicts = 0;
+int successfulTransactions = 0;
+int TMFallbackCount = 0;
+int TMFallbackSuccesses = 0;
+int synchronizationErrors = 0; // ie. non-white lane shot
+int shotAttempts = 0;
+int TMAbortedShots = 0; // Abort if selected lane is not white
+bool roundSummaryPrinted = false;
 chrono::time_point<chrono::system_clock> roundStartTime;
 mutex coarseLock;
 mutex * fineLock = new mutex [nLanes];
@@ -50,16 +57,25 @@ condition_variable cv; //used to wake up and wait for cleaner
 mutex cleanerLock; //used to wake up and wait for cleaner
 bool lanesFull = false; // for cleaner conditional variable
 bool lanesCleaned = false; //for cleaner conditional variable
+mutex printLock;
+
 
 // Function prototypes
 bool unsafeSetupNextRound();
-bool tryTransactionSafeShot(int selectedLane, Color playerColor);
-Color transactionSafeGetLaneColor(int selectedLane);
-void transactionSafeSetLaneColor(int selectedLane, Color playerColor);
-void transactionSafeSetupNextRound();
 void calculateShotRates(double &redShotRate, double &blueShotRate);
-void startNextRound();
-void printRoundSummary(double redShotRate, double blueShotRate);
+void unsafePrintRoundSummary(double redShotRate, double blueShotRate);
+void safePrintRoundSummary(double redShotRate, double blueShotRate);
+void unsafeUpdateRoundGlobalVariables();
+
+Color transactionSafeGetLaneColor(int selectedLane);
+//void transactionSafeSetLaneColor(int selectedLane, Color playerColor);
+bool tryTransactionSafeShot(int selectedLane, Color playerColor);
+bool tryTransactionSafeShot2(int selectedLane, int selectedLane2, Color playerColor);
+void transactionSafeSetupNextRound();
+
+
+
+
 
 void shooterAction(int rateShotsPerSecond, Color playerColor) {
     roundStartTime = chrono::system_clock::now();
@@ -75,9 +91,6 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
     
     while (roundsCount < roundsTotal) {
         auto timeOfNextShot = chrono::system_clock::now() + chrono::milliseconds(1000/rateShotsPerSecond);
-        
-std::cout << "Lanes Full value: " << lanesFull <<endl;
-				std::cout << "Lanes Cleaned value: " << lanesCleaned << endl;
 
         // Pick random lane
         int selectedLane = rand() % nLanes;
@@ -211,13 +224,12 @@ std::cout << "Lanes Full value: " << lanesFull <<endl;
         } // else selectedLane was sucessfully shot playerColor
         
         DB("Player %u shot lane %d\n", playerColor, selectedLane);
-        roundLanesShot++; //the lane was shot successfully, so one more lane has been shot this round
         
         // lanes are full when shotCount == total number of lanes
-        if (roundLanesShot == nLanes) {
+        if (roundLanesShot >= nLanes || (redRoundLanesShot + blueRoundLanesShot >= nLanes)) {
             double redShotRate, blueShotRate;
             calculateShotRates(redShotRate, blueShotRate);
-            printRoundSummary(redShotRate, blueShotRate);
+            safePrintRoundSummary(redShotRate, blueShotRate);
             transactionSafeSetupNextRound();
         }
         
@@ -353,7 +365,31 @@ std::cout << "Lanes Full value: " << lanesFull <<endl;
         
 #pragma mark RogueTM2
 #ifdef RogueTM2
+        //if the other thread cleaned up the final round, then stop looping
+        if (roundsCount >= roundsTotal){
+            break;
+        }
         
+        DB("Player %u selected lanes %d (%u) and %d(%u)\n",
+           playerColor, selectedLane, selectedLaneColor, selectedLane2, selectedLaneColor2);
+        
+        if (tryTransactionSafeShot2(selectedLane, selectedLane2, playerColor) == false) {
+            this_thread::sleep_until(timeOfNextShot);
+            continue;
+        } // else selectedLane was sucessfully shot playerColor
+        
+        DB("Player %u shot lanes %d and %d\n", playerColor, selectedLane, selectedLane2);
+        
+        // lanes are full when shotCount == total number of lanes
+        if (roundLanesShot >= nLanes || (redRoundLanesShot + blueRoundLanesShot >= nLanes)) {
+            double redShotRate, blueShotRate;
+            calculateShotRates(redShotRate, blueShotRate);
+            safePrintRoundSummary(redShotRate, blueShotRate);
+            transactionSafeSetupNextRound();
+        }
+        
+        // Sleep to control shots to rateShotsPerSecond
+        this_thread::sleep_until(timeOfNextShot);
 #endif
         
         
@@ -469,8 +505,6 @@ std::cout << "Lanes Full value: " << lanesFull <<endl;
 
         // Sleep to control shots to rateShotsPerSecond
 
-				std::cout << "Lanes Full value: " << lanesFull <<endl;
-				std::cout << "Lanes Cleaned value: " << lanesCleaned << endl;
         this_thread::sleep_until(timeOfNextShot);
 #endif
         
@@ -641,100 +675,88 @@ int main(int argc, char** argv) {
 }
 
 
+#pragma mark Helper Functions
+
+// ************************
+// *** Helper Functions ***
+// ************************
+
 // If lanesGallery is full, this function will output the round info, clear the lanes back to white, and start the next round
 // WARNING: Not threadsafe. Provide synchronization in calling function.
 bool unsafeSetupNextRound() {
     //make sure other thread did not already clean
     if (roundLanesShot >= nLanes || (redRoundLanesShot + blueRoundLanesShot) >= nLanes) {
-        // Get end time of round
-        auto roundEndTime = chrono::system_clock::now();
-        
-        // Calculate red and blue shot rates
-        chrono::duration<double> roundDuration = roundEndTime-roundStartTime;
-        double redShotRate = ((double) redRoundLanesShot)/roundDuration.count();
-        double blueShotRate = ((double) blueRoundLanesShot)/roundDuration.count();
-        
-        // Print lanesGallery and red and blue shot rates
-        std::cout << endl << "Round " << roundsCount+1 <<" complete" << endl;
-        lanesGallery->Print();
-        std::cout << "Red Shot Rate: " << redShotRate << " shots/second" << endl;
-        std::cout << "Blue Shot Rate: " << blueShotRate << " shots/second" << endl;
-        
-        //if (violetCount != 0){
-        //   std::cout << "There were " << violetCount << "violet lanes" << endl;
-        //}
-        
-        // Clear lanes
+        double redShotRate, blueShotRate;
+        calculateShotRates(redShotRate, blueShotRate);
+        unsafePrintRoundSummary(redShotRate, blueShotRate);
         lanesGallery->Clear();
-        
-        // Start new round
-        roundStartTime = chrono::system_clock::now();
-        roundLanesShot = 0;
-        redRoundLanesShot = 0;
-        blueRoundLanesShot = 0;
-        roundsCount++;
-        
+        unsafeUpdateRoundGlobalVariables();
         return true;
     } else {
         return false;
     }
 }
 
-
-#if defined(RogueTM) || defined(RogueTM2) || defined(RogueTMCleaner)
-bool tryTransactionSafeShot(int selectedLane, Color playerColor) {
-    mutex fallbackLock;
-    bool inFallbackPath;
-    Color selectedLaneColor;
-    Color returnColor;
+void calculateShotRates(double &redShotRate, double &blueShotRate) {
+    // Get end time of round
+    auto roundEndTime = chrono::system_clock::now();
     
-    if(_xbegin() == _XBEGIN_STARTED) {
-        if(inFallbackPath) {
-            _xabort();
-        }
-        
-        selectedLaneColor = lanesGallery->Get(selectedLane);
-        if (selectedLaneColor != white) {
-            return false;
-        }
-        
-        returnColor = lanesGallery->Set(selectedLane, playerColor);
-        assert(returnColor == white);
-        roundLanesShot++; //the lane was shot successfully, so one more lane has been shot this round
-        if (playerColor == red) {
-            redRoundLanesShot++;
-        } else {
-            blueRoundLanesShot++;
-        }
-        
-        _xend();
-    }
-    else{
-        fallbackLock.lock();
-        inFallbackPath = true;
-        
-        selectedLaneColor = lanesGallery->Get(selectedLane);
-        if (selectedLaneColor != white) {
-            inFallbackPath = false;
-            fallbackLock.unlock();
-            return false;
-        }
-        
-        returnColor = lanesGallery->Set(selectedLane, playerColor);
-        assert(returnColor == white);
-        roundLanesShot++; //the lane was shot successfully, so one more lane has been shot this round
-        if (playerColor == red) {
-            redRoundLanesShot++;
-        } else {
-            blueRoundLanesShot++;
-        }
-        
-        inFallbackPath = false;
-        fallbackLock.unlock();
-    }
-    
-    return true;
+    // Calculate red and blue shot rates
+    chrono::duration<double> roundDuration = roundEndTime-roundStartTime;
+    redShotRate = redRoundLanesShot/(double)roundDuration.count();
+    blueShotRate = blueRoundLanesShot/(double)roundDuration.count();
 }
+
+void unsafePrintRoundSummary(double redShotRate, double blueShotRate) {
+    // Print lanesGallery and red and blue shot rates
+    cout << endl << "Round " << roundsCount+1 <<" Summary" << endl;
+    lanesGallery->Print();
+    printf("Red Shot Rate: %.2f shots/second\n", redShotRate);
+    printf("Blue Shot Rate: %.2f shots/second\n", blueShotRate);
+#if defined(RogueTM) || defined(RogueTM2) || defined(RogueTMCleaner)
+    cout << "Successful Transaction Shots: " << successfulTransactions << endl;
+    cout << "Successful Fallback Shots: " << TMFallbackSuccesses << endl;
+    cout << "Aborted Shots (Non-white Selections): " << TMAbortedShots << endl;
+    cout << "Synchronization Errors: " << synchronizationErrors << endl;
+    printf("Overall Transaction Success Rate: %.2f%%\n", successfulTransactions/(double)shotAttempts*100);
+#endif
+}
+
+
+void safePrintRoundSummary(double redShotRate, double blueShotRate) {
+    printLock.lock();
+    if (!roundSummaryPrinted) {
+        unsafePrintRoundSummary(redShotRate, blueShotRate);
+        roundSummaryPrinted = true;
+    }
+    printLock.unlock();
+}
+
+
+
+// Configure global variables for next round
+void unsafeUpdateRoundGlobalVariables() {
+    roundStartTime = chrono::system_clock::now();
+    roundLanesShot = 0;
+    redRoundLanesShot = 0;
+    blueRoundLanesShot = 0;
+    roundsCount++;
+    roundSummaryPrinted = false;
+    TMFallbackCount = 0;
+    successfulTransactions = 0;
+    TMFallbackSuccesses = 0;
+    synchronizationErrors = 0;
+    shotAttempts = 0;
+    TMAbortedShots = 0;
+}
+
+
+#pragma mark Transaction Functions
+#if defined(RogueTM) || defined(RogueTM2) || defined(RogueTMCleaner)
+
+// *****************************
+// *** Transaction Functions ***
+// *****************************
 
 
 Color transactionSafeGetLaneColor(int selectedLane) {
@@ -742,7 +764,7 @@ Color transactionSafeGetLaneColor(int selectedLane) {
     bool inFallbackPath;
     Color selectedLaneColor;
     
-    if(_xbegin() == _XBEGIN_STARTED) {
+    if(_xbegin() == -1) {
         if(inFallbackPath) {
             _xabort();
         }
@@ -762,28 +784,184 @@ Color transactionSafeGetLaneColor(int selectedLane) {
 }
 
 
-void transactionSafeSetLaneColor(int selectedLane, Color playerColor) {
+//void transactionSafeSetLaneColor(int selectedLane, Color playerColor) {
+//    mutex fallbackLock;
+//    bool inFallbackPath;
+//    Color returnColor;
+//
+//    if(_xbegin() == -1) {
+//        if(inFallbackPath) {
+//            _xabort();
+//        }
+//
+//        returnColor = lanesGallery->Set(selectedLane, playerColor);
+//        _xend();
+//    }
+//    else{
+//        fallbackLock.lock();
+//        inFallbackPath = true;
+//        returnColor = lanesGallery->Set(selectedLane, playerColor);
+//        inFallbackPath = false;
+//        fallbackLock.unlock();
+//    }
+//
+//    assert(returnColor == white); // Should always return white if synchronizing correctly
+//}
+
+
+bool tryTransactionSafeShot(int selectedLane, Color playerColor) {
     mutex fallbackLock;
     bool inFallbackPath;
+    Color selectedLaneColor;
     Color returnColor;
+    shotAttempts++;
     
     if(_xbegin() == _XBEGIN_STARTED) {
-        if(inFallbackPath) {
+        if(!inFallbackPath) {
+            selectedLaneColor = lanesGallery->Get(selectedLane);
+            if (selectedLaneColor != white) {
+                TMAbortedShots++;
+                return false;
+            }
+            
+            returnColor = lanesGallery->Set(selectedLane, playerColor);
+            if (returnColor != white) {
+                synchronizationErrors++;
+                return false;
+            }
+            successfulTransactions++;
+            roundLanesShot++; //the lane was shot successfully, so one more lane has been shot this round
+            if (playerColor == red) {
+                redRoundLanesShot++;
+            } else {
+                blueRoundLanesShot++;
+            }
+
+        } else {
             _xabort();
         }
         
-        returnColor = lanesGallery->Set(selectedLane, playerColor);
         _xend();
     }
     else{
-        fallbackLock.lock();
         inFallbackPath = true;
+        fallbackLock.lock();
+        TMFallbackCount++;
+        
+        selectedLaneColor = lanesGallery->Get(selectedLane);
+        if (selectedLaneColor != white) {
+            TMAbortedShots++;
+            inFallbackPath = false;
+            fallbackLock.unlock();
+            return false;
+        }
+        
         returnColor = lanesGallery->Set(selectedLane, playerColor);
+        if (returnColor != white) {
+            synchronizationErrors++;
+            inFallbackPath = false;
+            fallbackLock.unlock();
+            return false;
+        }
+        TMFallbackSuccesses++;
+        roundLanesShot++; //the lane was shot successfully, so one more lane has been shot this round
+        if (playerColor == red) {
+            redRoundLanesShot++;
+        } else {
+            blueRoundLanesShot++;
+        }
+        
         inFallbackPath = false;
         fallbackLock.unlock();
     }
     
-    assert(returnColor == white); // Should always return white if synchronizing correctly
+    return true;
+}
+
+
+bool tryTransactionSafeShot2(int selectedLane, int selectedLane2, Color playerColor) {
+    mutex fallbackLock;
+    bool inFallbackPath;
+    Color selectedLaneColor, selectedLaneColor2, returnColor, returnColor2;
+    shotAttempts += 2;
+    
+    if(_xbegin() == _XBEGIN_STARTED) {
+        if(!inFallbackPath) {
+            selectedLaneColor = lanesGallery->Get(selectedLane);
+            selectedLaneColor2 = lanesGallery->Get(selectedLane2);
+            if (selectedLaneColor != white || selectedLaneColor2 != white) {
+                TMAbortedShots += 2;
+                return false;
+            }
+            
+            returnColor = lanesGallery->Set(selectedLane, playerColor);
+            returnColor2 = lanesGallery->Set(selectedLane2, playerColor);
+            
+            if (returnColor != white) {
+                synchronizationErrors++;
+                return false;
+            }
+            if (returnColor2 != white) {
+                synchronizationErrors++;
+                return false;
+            }
+            
+            successfulTransactions += 2;
+            roundLanesShot += 2; //the lane was shot successfully, so one more lane has been shot this round
+            if (playerColor == red) {
+                redRoundLanesShot += 2;
+            } else {
+                blueRoundLanesShot += 2;
+            }
+        } else {
+            _xabort();
+        }
+        
+        _xend();
+    }
+    else{
+        inFallbackPath = true;
+        fallbackLock.lock();
+        TMFallbackCount += 2;
+        
+        selectedLaneColor = lanesGallery->Get(selectedLane);
+        selectedLaneColor2 = lanesGallery->Get(selectedLane2);
+        if (selectedLaneColor != white || selectedLaneColor2 != white) {
+            TMAbortedShots += 2;
+            inFallbackPath = false;
+            fallbackLock.unlock();
+            return false;
+        }
+        
+        returnColor = lanesGallery->Set(selectedLane, playerColor);
+        returnColor2 = lanesGallery->Set(selectedLane2, playerColor);
+        if (returnColor != white) {
+            synchronizationErrors++;
+            inFallbackPath = false;
+            fallbackLock.unlock();
+            return false;
+        }
+        if (returnColor2 != white) {
+            synchronizationErrors++;
+            inFallbackPath = false;
+            fallbackLock.unlock();
+            return false;
+        }
+        
+        TMFallbackSuccesses += 2;
+        roundLanesShot += 2; //the lane was shot successfully, so one more lane has been shot this round
+        
+        if (playerColor == red) {
+            redRoundLanesShot += 2;
+        } else {
+            blueRoundLanesShot += 2;
+        }
+        
+        inFallbackPath = false;
+        fallbackLock.unlock();
+    }
+    
+    return true;
 }
 
 
@@ -801,7 +979,7 @@ void transactionSafeSetupNextRound() {
         //make sure other thread did not already clean
         if (roundLanesShot >= nLanes || (redRoundLanesShot + blueRoundLanesShot) >= nLanes) {
             lanesGallery->Clear();
-            startNextRound();
+            unsafeUpdateRoundGlobalVariables();
         }
         
         _xend();
@@ -809,37 +987,15 @@ void transactionSafeSetupNextRound() {
     else{
         fallbackLock.lock();
         inFallbackPath = true;
-        lanesGallery->Clear();
-        startNextRound();
+        
+        //make sure other thread did not already clean
+        if (roundLanesShot >= nLanes || (redRoundLanesShot + blueRoundLanesShot) >= nLanes) {
+            lanesGallery->Clear();
+            unsafeUpdateRoundGlobalVariables();
+        }
+        
         inFallbackPath = false;
         fallbackLock.unlock();
     }
 }
 #endif
-
-void calculateShotRates(double &redShotRate, double &blueShotRate) {
-    // Get end time of round
-    auto roundEndTime = chrono::system_clock::now();
-    
-    // Calculate red and blue shot rates
-    chrono::duration<double> roundDuration = roundEndTime-roundStartTime;
-    redShotRate = redRoundLanesShot/(double)roundDuration.count();
-    blueShotRate = blueRoundLanesShot/(double)roundDuration.count();
-}
-
-// Configure global variables for next round
-void startNextRound() {
-    roundStartTime = chrono::system_clock::now();
-    roundLanesShot = 0;
-    redRoundLanesShot = 0;
-    blueRoundLanesShot = 0;
-    roundsCount++;
-}
-
-void printRoundSummary(double redShotRate, double blueShotRate) {
-    // Print lanesGallery and red and blue shot rates
-    std::cout << endl << "Round " << roundsCount+1 <<" Summary" << endl;
-    lanesGallery->Print();
-    std::cout << "Red Shot Rate: " << redShotRate << " shots/second" << endl;
-    std::cout << "Blue Shot Rate: " << blueShotRate << " shots/second" << endl;
-}
