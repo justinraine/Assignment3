@@ -36,7 +36,7 @@ do { if (DEBUG_OUTPUT) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
 
 // Global variables
 Lanes* lanesGallery;
-int nLanes = 2;
+int nLanes = 10;
 int roundLanesShot = 0; //number of lanes shot (blue or red)
 int redRoundLanesShot = 0; //for finegrain cases
 int blueRoundLanesShot = 0; //for finegrain cases
@@ -512,7 +512,37 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         
 #pragma mark RogueTMCleaner
 #ifdef RogueTMCleaner
-
+				//if the cleaner thread cleaned up the final round, then stop looping
+        if (roundsCount >= roundsTotal){
+            break;
+        }
+        
+        DB("Player %u selected lane %d, currently %u\n", playerColor, selectedLane, transactionSafeGetLaneColor(selectedLane));
+        
+        if (tryTransactionSafeShot(selectedLane, playerColor) == false) {
+            this_thread::sleep_until(timeOfNextShot);
+            continue;
+        } // else selectedLane was sucessfully shot playerColor
+        
+        DB("Player %u shot lane %d\n", playerColor, selectedLane);
+        
+				//wake up cleaner if lanes full
+				if (redRoundLanesShot + blueRoundLanesShot >= nLanes){
+					{
+		      	std::lock_guard<std::mutex> uLock(cleanerLock);
+						lanesFull = true;
+		  		}
+		  		cv.notify_one();
+	 
+					// wait for the cleaner
+					{
+						  std::unique_lock<std::mutex> uLock(cleanerLock);
+						  cv.wait(uLock, []{return lanesCleaned;});
+					}
+				}
+        
+        // Sleep to control shots to rateShotsPerSecond
+        this_thread::sleep_until(timeOfNextShot);
 #endif
     }
 }
@@ -568,7 +598,14 @@ void cleaner() {
     
 
 #ifdef RogueTMCleaner
-        
+        // lanes are full when shotCount == total number of lanes
+        if (roundLanesShot >= nLanes || (redRoundLanesShot + blueRoundLanesShot >= nLanes)) {
+            double redShotRate, blueShotRate;
+            calculateShotRates(redShotRate, blueShotRate);
+            safePrintRoundSummary(redShotRate, blueShotRate);
+            transactionSafeSetupNextRound();
+						lanesFull = false;
+        }
 #endif
 
     		// Wake up shooter

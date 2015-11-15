@@ -1,0 +1,507 @@
+Round 2 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Red  | Red  | Red  | Red  | Red  | Blue | Red  | Blue | Red  | Red  |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 147.90 shots/second
+Blue Shot Rate: 36.97 shots/second
+Successful Transaction Shots: 8
+Successful Fallback Shots: 2
+Aborted Shots (Non-white Selections): 190
+Synchronization Errors: 0
+Overall Transaction Success Rate: 4.00%
+
+Round 3 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Blue | Blue | Red  | Red  | Blue | Blue | Blue | Red  | Blue | Red  |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 102.40 shots/second
+Blue Shot Rate: 153.60 shots/second
+Successful Transaction Shots: 10
+Successful Fallback Shots: 0
+Aborted Shots (Non-white Selections): 134
+Synchronization Errors: 0
+Overall Transaction Success Rate: 6.94%
+
+Round 4 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Blue | Blue | Red  | Red  | Red  | Red  | Red  | Red  | Blue | Blue |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 325.14 shots/second
+Blue Shot Rate: 216.76 shots/second
+Successful Transaction Shots: 10
+Successful Fallback Shots: 0
+Aborted Shots (Non-white Selections): 58
+Synchronization Errors: 0
+Overall Transaction Success Rate: 14.71%
+
+Round 5 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Red  | Blue | Red  | Red  | Red  | Red  | Blue | Blue | Red  | Blue |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 70.05 shots/second
+Blue Shot Rate: 46.70 shots/second
+Successful Transaction Shots: 8
+Successful Fallback Shots: 2
+Aborted Shots (Non-white Selections): 306
+Synchronization Errors: 0
+Overall Transaction Success Rate: 2.53%
+
+Round 6 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Red  | Blue | Blue | Blue | Red  | Blue | Blue | Blue | Blue | Blue |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 80.18 shots/second
+Blue Shot Rate: 320.74 shots/second
+Successful Transaction Shots: 10
+Successful Fallback Shots: 0
+Aborted Shots (Non-white Selections): 82
+Synchronization Errors: 0
+Overall Transaction Success Rate: 10.87%
+
+Round 7 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Red  | Blue | Red  | Red  | Red  | Blue | Red  | Blue | Blue | Red  |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 291.13 shots/second
+Blue Shot Rate: 194.08 shots/second
+Successful Transaction Shots: 4
+Successful Fallback Shots: 6
+Aborted Shots (Non-white Selections): 66
+Synchronization Errors: 0
+Overall Transaction Success Rate: 5.26%
+
+Round 8 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Red  | Red  | Red  | Blue | Red  | Blue | Red  | Red  | Blue | Blue |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 163.13 shots/second
+Blue Shot Rate: 108.75 shots/second
+Successful Transaction Shots: 6
+Successful Fallback Shots: 4
+Aborted Shots (Non-white Selections): 126
+Synchronization Errors: 0
+Overall Transaction Success Rate: 4.41%
+
+Round 9 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Red  | Red  | Blue | Red  | Blue | Red  | Blue | Blue | Red  | Red  |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 138.09 shots/second
+Blue Shot Rate: 92.06 shots/second
+Successful Transaction Shots: 8
+Successful Fallback Shots: 2
+Aborted Shots (Non-white Selections): 150
+Synchronization Errors: 0
+Overall Transaction Success Rate: 5.00%
+
+Round 10 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Red  | Red  | Blue | Red  | Red  | Blue | Blue | Red  | Red  | Blue |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 291.83 shots/second
+Blue Shot Rate: 194.55 shots/second
+Successful Transaction Shots: 8
+Successful Fallback Shots: 2
+Aborted Shots (Non-white Selections): 66
+Synchronization Errors: 0
+Overall Transaction Success Rate: 10.53%
+
+Round 11 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Red  | Blue | Blue | Blue | Red  | Blue | Red  | Blue | Blue | Red  |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 90.02 shots/second
+Blue Shot Rate: 135.03 shots/second
+Successful Transaction Shots: 8
+Successful Fallback Shots: 2
+Aborted Shots (Non-white Selections): 154
+Synchronization Errors: 0
+Overall Transaction Success Rate: 4.88%
+
+Round 12 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Blue | Blue | Blue | Red  | Blue | Red  | Red  | Blue | Blue | Red  |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 307.63 shots/second
+Blue Shot Rate: 461.45 shots/second
+Successful Transaction Shots: 8
+Successful Fallback Shots: 2
+Aborted Shots (Non-white Selections): 38
+Synchronization Errors: 0
+Overall Transaction Success Rate: 16.67%
+
+Round 13 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Blue | Blue | Blue | Blue | Blue | Blue | Blue | Blue | Blue | Blue |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 0.00 shots/second
+Blue Shot Rate: 419.68 shots/second
+Successful Transaction Shots: 8
+Successful Fallback Shots: 2
+Aborted Shots (Non-white Selections): 78
+Synchronization Errors: 0
+Overall Transaction Success Rate: 9.09%
+
+Round 14 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Red  | Red  | Blue | Blue | Red  | Blue | Red  | Blue | Red  | Red  |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 126.03 shots/second
+Blue Shot Rate: 84.02 shots/second
+Successful Transaction Shots: 10
+Successful Fallback Shots: 0
+Aborted Shots (Non-white Selections): 166
+Synchronization Errors: 0
+Overall Transaction Success Rate: 5.68%
+
+Round 15 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Red  | Blue | Blue | Red  | Blue | Red  | Red  | Blue | Red  | Red  |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 92.28 shots/second
+Blue Shot Rate: 61.52 shots/second
+Successful Transaction Shots: 10
+Successful Fallback Shots: 0
+Aborted Shots (Non-white Selections): 230
+Synchronization Errors: 0
+Overall Transaction Success Rate: 4.17%
+
+Round 16 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Blue | Blue | Blue | Blue | Blue | Blue | Blue | Red  | Red  | Blue |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 231.60 shots/second
+Blue Shot Rate: 926.41 shots/second
+Successful Transaction Shots: 10
+Successful Fallback Shots: 0
+Aborted Shots (Non-white Selections): 22
+Synchronization Errors: 0
+Overall Transaction Success Rate: 31.25%
+
+Round 17 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Blue | Blue | Red  | Red  | Blue | Red  | Red  | Red  | Red  | Blue |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 463.42 shots/second
+Blue Shot Rate: 308.95 shots/second
+Successful Transaction Shots: 6
+Successful Fallback Shots: 4
+Aborted Shots (Non-white Selections): 38
+Synchronization Errors: 0
+Overall Transaction Success Rate: 12.50%
+
+Round 18 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Blue | Red  | Red  | Red  | Red  | Blue | Red  | Red  | Red  | Red  |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 156.78 shots/second
+Blue Shot Rate: 39.19 shots/second
+Successful Transaction Shots: 10
+Successful Fallback Shots: 0
+Aborted Shots (Non-white Selections): 178
+Synchronization Errors: 0
+Overall Transaction Success Rate: 5.32%
+
+Round 19 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Blue | Blue | Red  | Red  | Red  | Blue | Blue | Blue | Red  | Blue |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 153.57 shots/second
+Blue Shot Rate: 230.36 shots/second
+Successful Transaction Shots: 8
+Successful Fallback Shots: 2
+Aborted Shots (Non-white Selections): 86
+Synchronization Errors: 0
+Overall Transaction Success Rate: 8.33%
+
+Round 20 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Blue | Blue | Red  | Red  | Red  | Blue | Blue | Blue | Red  | Blue |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 184.91 shots/second
+Blue Shot Rate: 277.37 shots/second
+Successful Transaction Shots: 8
+Successful Fallback Shots: 2
+Aborted Shots (Non-white Selections): 70
+Synchronization Errors: 0
+Overall Transaction Success Rate: 10.00%
+
+Round 21 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Red  | Red  | Red  | Red  | Red  | Blue | Blue | Red  | Red  | Red  |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 273.24 shots/second
+Blue Shot Rate: 68.31 shots/second
+Successful Transaction Shots: 10
+Successful Fallback Shots: 0
+Aborted Shots (Non-white Selections): 98
+Synchronization Errors: 0
+Overall Transaction Success Rate: 9.26%
+
+Round 22 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Blue | Blue | Blue | Blue | Red  | Red  | Blue | Blue | Blue | Blue |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 92.28 shots/second
+Blue Shot Rate: 369.11 shots/second
+Successful Transaction Shots: 8
+Successful Fallback Shots: 2
+Aborted Shots (Non-white Selections): 70
+Synchronization Errors: 0
+Overall Transaction Success Rate: 10.00%
+
+Round 23 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Red  | Blue | Red  | Red  | Blue | Blue | Red  | Blue | Red  | Red  |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 307.09 shots/second
+Blue Shot Rate: 204.73 shots/second
+Successful Transaction Shots: 6
+Successful Fallback Shots: 4
+Aborted Shots (Non-white Selections): 62
+Synchronization Errors: 0
+Overall Transaction Success Rate: 8.33%
+
+Round 24 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Blue | Red  | Red  | Blue | Red  | Blue | Blue | Blue | Blue | Red  |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 246.80 shots/second
+Blue Shot Rate: 370.20 shots/second
+Successful Transaction Shots: 8
+Successful Fallback Shots: 2
+Aborted Shots (Non-white Selections): 50
+Synchronization Errors: 0
+Overall Transaction Success Rate: 13.33%
+
+Round 25 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Blue | Blue | Red  | Blue | Red  | Red  | Red  | Blue | Red  | Red  |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 167.93 shots/second
+Blue Shot Rate: 111.95 shots/second
+Successful Transaction Shots: 10
+Successful Fallback Shots: 0
+Aborted Shots (Non-white Selections): 122
+Synchronization Errors: 0
+Overall Transaction Success Rate: 7.58%
+
+Round 26 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Red  | Red  | Red  | Red  | Red  | Red  | Red  | Red  | Red  | Red  |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 307.60 shots/second
+Blue Shot Rate: 0.00 shots/second
+Successful Transaction Shots: 10
+Successful Fallback Shots: 0
+Aborted Shots (Non-white Selections): 110
+Synchronization Errors: 0
+Overall Transaction Success Rate: 8.33%
+
+Round 27 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Blue | Red  | Red  | Blue | Blue | Red  | Red  | Blue | Blue | Blue |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 264.02 shots/second
+Blue Shot Rate: 396.04 shots/second
+Successful Transaction Shots: 10
+Successful Fallback Shots: 0
+Aborted Shots (Non-white Selections): 46
+Synchronization Errors: 0
+Overall Transaction Success Rate: 17.86%
+
+Round 28 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Blue | Blue | Red  | Blue | Red  | Blue | Red  | Red  | Blue | Blue |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 78.56 shots/second
+Blue Shot Rate: 117.83 shots/second
+Successful Transaction Shots: 10
+Successful Fallback Shots: 0
+Aborted Shots (Non-white Selections): 178
+Synchronization Errors: 0
+Overall Transaction Success Rate: 5.32%
+
+Round 29 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Blue | Red  | Red  | Blue | Red  | Red  | Blue | Blue | Red  | Red  |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 65.10 shots/second
+Blue Shot Rate: 43.40 shots/second
+Successful Transaction Shots: 10
+Successful Fallback Shots: 0
+Aborted Shots (Non-white Selections): 330
+Synchronization Errors: 0
+Overall Transaction Success Rate: 2.94%
+
+Round 30 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Red  | Red  | Blue | Red  | Red  | Red  | Blue | Red  | Red  | Red  |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 1483.00 shots/second
+Blue Shot Rate: 370.75 shots/second
+Successful Transaction Shots: 10
+Successful Fallback Shots: 0
+Aborted Shots (Non-white Selections): 10
+Synchronization Errors: 0
+Overall Transaction Success Rate: 50.00%
+
+Round 31 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Red  | Red  | Blue | Blue | Blue | Red  | Red  | Red  | Blue | Red  |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 190.75 shots/second
+Blue Shot Rate: 127.17 shots/second
+Successful Transaction Shots: 8
+Successful Fallback Shots: 2
+Aborted Shots (Non-white Selections): 106
+Synchronization Errors: 0
+Overall Transaction Success Rate: 6.90%
+
+Round 32 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Red  | Blue | Blue | Red  | Blue | Blue | Blue | Blue | Blue | Blue |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 168.54 shots/second
+Blue Shot Rate: 674.17 shots/second
+Successful Transaction Shots: 8
+Successful Fallback Shots: 2
+Aborted Shots (Non-white Selections): 34
+Synchronization Errors: 0
+Overall Transaction Success Rate: 18.18%
+
+Round 33 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Blue | Blue | Red  | Blue | Blue | Blue | Blue | Blue | Red  | Blue |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 65.82 shots/second
+Blue Shot Rate: 263.28 shots/second
+Successful Transaction Shots: 8
+Successful Fallback Shots: 2
+Aborted Shots (Non-white Selections): 102
+Synchronization Errors: 0
+Overall Transaction Success Rate: 7.14%
+
+Round 34 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Red  | Red  | Red  | Blue | Red  | Blue | Red  | Red  | Red  | Red  |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 115.35 shots/second
+Blue Shot Rate: 28.84 shots/second
+Successful Transaction Shots: 8
+Successful Fallback Shots: 2
+Aborted Shots (Non-white Selections): 246
+Synchronization Errors: 0
+Overall Transaction Success Rate: 3.12%
+
+Round 35 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Blue | Red  | Blue | Blue | Red  | Blue | Blue | Red  | Red  | Blue |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 76.66 shots/second
+Blue Shot Rate: 114.99 shots/second
+Successful Transaction Shots: 10
+Successful Fallback Shots: 0
+Aborted Shots (Non-white Selections): 182
+Synchronization Errors: 0
+Overall Transaction Success Rate: 5.21%
+
+Round 36 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Red  | Red  | Red  | Red  | Red  | Red  | Red  | Red  | Blue | Blue |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 925.18 shots/second
+Blue Shot Rate: 231.30 shots/second
+Successful Transaction Shots: 8
+Successful Fallback Shots: 2
+Aborted Shots (Non-white Selections): 22
+Synchronization Errors: 0
+Overall Transaction Success Rate: 25.00%
+
+Round 37 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Blue | Blue | Red  | Blue | Blue | Red  | Red  | Blue | Blue | Red  |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 411.90 shots/second
+Blue Shot Rate: 617.84 shots/second
+Successful Transaction Shots: 10
+Successful Fallback Shots: 0
+Aborted Shots (Non-white Selections): 26
+Synchronization Errors: 0
+Overall Transaction Success Rate: 27.78%
+
+Round 38 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Red  | Blue | Blue | Blue | Blue | Blue | Blue | Blue | Red  | Blue |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 46.14 shots/second
+Blue Shot Rate: 184.54 shots/second
+Successful Transaction Shots: 4
+Successful Fallback Shots: 6
+Aborted Shots (Non-white Selections): 150
+Synchronization Errors: 0
+Overall Transaction Success Rate: 2.50%
+
+Round 39 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Red  | Red  | Red  | Red  | Red  | Red  | Red  | Red  | Blue | Blue |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 411.03 shots/second
+Blue Shot Rate: 102.76 shots/second
+Successful Transaction Shots: 6
+Successful Fallback Shots: 4
+Aborted Shots (Non-white Selections): 62
+Synchronization Errors: 0
+Overall Transaction Success Rate: 8.33%
+
+Round 40 Summary
+|------|------|------|------|------|------|------|------|------|------|
+| Blue | Blue | Blue | Red  | Red  | Blue | Blue | Red  | Red  | Blue |
+|------|------|------|------|------|------|------|------|------|------|
+
+Red Shot Rate: 80.33 shots/second
+Blue Shot Rate: 120.50 shots/second
+Successful Transaction Shots: 8
+Successful Fallback Shots: 2
+Aborted Shots (Non-white Selections): 174
+Synchronization Errors: 0
+Overall Transaction Success Rate: 4.35%
+
