@@ -7,6 +7,7 @@
 #include <chrono>
 #include <getopt.h>
 #include "tsx-tools/rtm.h"
+#include <condition_variable>
 
 using namespace std;
 
@@ -22,11 +23,11 @@ do { if (DEBUG_OUTPUT) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
 
 // Specify action with definition of: {RogueCoarse, RogueFine, RogueTM, RogueCoarse2, RogueFine2, RogueTM2,
 //                                     RogueCoarseCleaner, RogueFineCleaner, RogueTMCleaner}
-#define RogueFine
+#define RogueCoarseCleaner
 
 
 /*
- * Define statement was here. Now, choose RogueCoarse type by calling:
+ * You can also choose RogueCoarse type by calling:
  *		make ROGUE=-DRogueCoarse
  * Replace RogueCoarse with the Rogue you want to run
  */
@@ -34,7 +35,7 @@ do { if (DEBUG_OUTPUT) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
 
 // Global variables
 Lanes* lanesGallery;
-int nLanes = 10;
+int nLanes = 2;
 int roundLanesShot = 0; //number of lanes shot (blue or red)
 int redRoundLanesShot = 0; //for finegrain cases
 int blueRoundLanesShot = 0; //for finegrain cases
@@ -45,6 +46,10 @@ chrono::time_point<chrono::system_clock> roundStartTime;
 mutex coarseLock;
 mutex * fineLock = new mutex [nLanes];
 mutex fineCountLock[2]; //lock to protect counts of lanes shot by each thread. 0 for red, 1 for blue
+condition_variable cv; //used to wake up and wait for cleaner
+mutex cleanerLock; //used to wake up and wait for cleaner
+bool lanesFull = false; // for cleaner conditional variable
+bool lanesCleaned = false; //for cleaner conditional variable
 
 // Function prototypes
 bool unsafeSetupNextRound();
@@ -70,7 +75,7 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
     
     while (roundsCount < roundsTotal) {
         auto timeOfNextShot = chrono::system_clock::now() + chrono::milliseconds(1000/rateShotsPerSecond);
-        
+
         // Pick random lane
         int selectedLane = rand() % nLanes;
         int selectedLane2;
@@ -382,7 +387,24 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
         } else {
             blueRoundLanesShot++;
         }
-        DB("Player %u shot lane %d\n", playerColor, selectedLane);
+
+ 				DB("Player %u shot lane %d\n", playerColor, selectedLane);
+				
+				//wake up cleaner if lanes full
+				if (redRoundLanesShot + blueRoundLanesShot == nLanes){
+					{
+		      	std::lock_guard<std::mutex> uLock(cleanerLock);
+						lanesFull = true;
+		  		}
+		  		cv.notify_one();
+	 
+					// wait for the cleaner
+					{
+						  std::unique_lock<std::mutex> uLock(cleanerLock);
+							
+						  cv.wait(uLock,[]{return lanesCleaned;});
+					}
+				}
         
         // Sleep to control shots to rateShotsPerSecond
         this_thread::sleep_until(timeOfNextShot);
@@ -427,7 +449,23 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
             fineCountLock[1].unlock();
         }
         
+				//wake up cleaner if lanes full
+				if (redRoundLanesShot + blueRoundLanesShot >= nLanes){
+					{
+		      	std::lock_guard<std::mutex> uLock(cleanerLock);
+						lanesFull = true;
+		  		}
+		  		cv.notify_one();
+	 
+					// wait for the cleaner
+					{
+						  std::unique_lock<std::mutex> uLock(cleanerLock);
+						  cv.wait(uLock, []{return lanesCleaned;});
+					}
+				}
+
         // Sleep to control shots to rateShotsPerSecond
+
         this_thread::sleep_until(timeOfNextShot);
 #endif
         
@@ -441,7 +479,7 @@ void shooterAction(int rateShotsPerSecond, Color playerColor) {
 }
 
 
-void cleaner(int checkRate) {
+void cleaner() {
     
     /*
      *  Cleans up lanes. Needs to synchronize with shooter.
@@ -451,13 +489,19 @@ void cleaner(int checkRate) {
      *  Once cleaner starts up shooters wait for cleaner to finish.
      */
 		while (roundsCount < roundsTotal) {
-        auto timeOfNextCheck = chrono::system_clock::now() + chrono::milliseconds(1000/checkRate);
 
+   	// Wait until woken up by a shooter
+    std::unique_lock<std::mutex> uLock(cleanerLock);
+
+		// check to make sure wake-up was not spurious
+    	cv.wait(uLock, []{return lanesFull;});
+		
 #ifdef RogueCoarseCleaner
 		 // lanes are full when shotCount == total number of lanes
         if (roundLanesShot == nLanes) {
             coarseLock.lock();
             unsafeSetupNextRound();
+						lanesFull = false;
             coarseLock.unlock();
         }
 #endif
@@ -465,7 +509,7 @@ void cleaner(int checkRate) {
 
 #ifdef RogueFineCleaner
      		// lanes are full when shotCount + violetLanes == total number of lanes
-        if ((redRoundLanesShot + blueRoundLanesShot) == nLanes) {
+        if ((redRoundLanesShot + blueRoundLanesShot) >= nLanes) {
             for (int i=0; i < nLanes; i++){
                 fineLock[i].lock();
             }
@@ -473,11 +517,12 @@ void cleaner(int checkRate) {
             fineCountLock[1].lock();
             
             unsafeSetupNextRound();
+						lanesFull = false;
             
             for (int i=0; i < nLanes; i++){
                 fineLock[i].unlock();
             }
-            fineCountLock[0].unlock();
+						fineCountLock[0].unlock();
             fineCountLock[1].unlock();
         }
 #endif
@@ -487,8 +532,10 @@ void cleaner(int checkRate) {
         
 #endif
 
-		    // Sleep to control shots to rateShotsPerSecond
-        this_thread::sleep_until(timeOfNextCheck);
+    		// Wake up shooter
+				lanesCleaned = true;
+			  uLock.unlock();
+    		cv.notify_all();
 		}
 }
 
@@ -577,7 +624,7 @@ int main(int argc, char** argv) {
     threadsList.push_back(std::thread(&shooterAction, blueRate, blue));
     
 #if defined(RogueCoarseCleaner) || defined(RogueFineCleaner) || defined(RogueTMCleaner)
-    threadsList.push_back(std::thread(&cleaner, redRate + blueRate));
+    threadsList.push_back(std::thread(&cleaner));
 #endif
     
     // Clean up threads
@@ -629,6 +676,7 @@ bool unsafeSetupNextRound() {
 }
 
 
+#if defined(RogueTM) || defined(RogueTM2) || defined(RogueTMCleaner)
 bool tryTransactionSafeShot(int selectedLane, Color playerColor) {
     mutex fallbackLock;
     bool inFallbackPath;
@@ -762,6 +810,7 @@ void transactionSafeSetupNextRound() {
         fallbackLock.unlock();
     }
 }
+#endif
 
 void calculateShotRates(double &redShotRate, double &blueShotRate) {
     // Get end time of round
