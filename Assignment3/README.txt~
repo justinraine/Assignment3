@@ -4,5 +4,3 @@ For example, to run RogueCoarse, make using:
 make ROGUE=-DRogueCoarse -B
 
 The types are: RogueCoarse, RogueFine, RogueTM, RogueCoarse2, RogueFine2, RogueTM2, RogueCoarseCleaner, RogueFineCleaner, RogueTMCleaner
-
-You must recompile to choose a new Rogue, so make sure to include the "-B"

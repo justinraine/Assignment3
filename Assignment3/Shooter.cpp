@@ -23,11 +23,10 @@ do { if (DEBUG_OUTPUT) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
 
 // Specify action with definition of: {RogueCoarse, RogueFine, RogueTM, RogueCoarse2, RogueFine2, RogueTM2,
 //                                     RogueCoarseCleaner, RogueFineCleaner, RogueTMCleaner}
-//#define RogueTM
 
 /*
- * You can also choose RogueCoarse type by calling:
- *		make ROGUE=-DRogueCoarse
+ * You can choose RogueCoarse type by calling:
+ *		make ROGUE=-DRogueCoarse -B
  * Replace RogueCoarse with the Rogue you want to run
  * Must delete existing Shooter and Shooter.o from build folder to change Rogue type
  */
