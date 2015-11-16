@@ -23,9 +23,7 @@ do { if (DEBUG_OUTPUT) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
 
 // Specify action with definition of: {RogueCoarse, RogueFine, RogueTM, RogueCoarse2, RogueFine2, RogueTM2,
 //                                     RogueCoarseCleaner, RogueFineCleaner, RogueTMCleaner}
-#define RogueTM
-
-#define RogueFineCleaner
+//#define RogueTM
 
 /*
  * You can also choose RogueCoarse type by calling:
@@ -931,8 +929,9 @@ bool tryTransactionSafeShot(int selectedLane, Color playerColor) {
         _xend();
     }
     else{
-        inFallbackPath = true;
         fallbackLock.lock();
+        inFallbackPath = true;
+        
         abortedTransactions++;
         
         selectedLaneColor = lanesGallery->Get(selectedLane);
@@ -1007,8 +1006,8 @@ bool tryTransactionSafeShot2(int selectedLane, int selectedLane2, Color playerCo
         _xend();
     }
     else{
-        inFallbackPath = true;
         fallbackLock.lock();
+        inFallbackPath = true;
         abortedTransactions ++;
         
         selectedLaneColor = lanesGallery->Get(selectedLane);
